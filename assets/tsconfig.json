@@ -1,0 +1,25 @@
+{
+    "include": [
+        "../@types/cc/*.d.ts",
+        "./**/*" // ← 必须同时加上这个！
+    ],
+    "compilerOptions": {
+        "target": "es2022",
+        "module": "CommonJS",
+        //"inlineSourceMap": true,
+        "sourceMap": true,
+        "inlineSources": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "experimentalDecorators": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "declaration": true,
+        "rootDir": "./",
+        "outDir": "../temp/",
+        "types": [
+            "node"
+        ]
+    }
+}
