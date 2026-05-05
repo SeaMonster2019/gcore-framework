@@ -1,12 +1,36 @@
 <div id="panel-container">
     <div class="tab-header">
-        <button class="tab-btn active" data-tab="tab-1">测试页签 1</button>
+        <button class="tab-btn active" data-tab="tab-1">多语言工具</button>
         <button class="tab-btn" data-tab="tab-2">测试页签 2</button>
     </div>
     <div class="tab-content">
         <div class="tab-pane active" id="tab-1">
-            <h2>测试页签 1</h2>
-            <p>这里用于展示第一个测试页签的内容。</p>
+            <h2>多语言辅助工具</h2>
+            <div class="form-row">
+                <label class="folder-picker">
+                    <span>源文件夹：</span>
+                    <button id="src-folder-btn" type="button">选择文件夹</button>
+                    <input id="src-folder-path" type="text" readonly placeholder="请选择源文件夹" />
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="folder-picker">
+                    <span>输出文件夹：</span>
+                    <button id="out-folder-btn" type="button">选择文件夹</button>
+                    <input id="out-folder-path" type="text" readonly placeholder="请选择输出文件夹" />
+                </label>
+            </div>
+            <div class="form-row">
+                <label>字段头（以逗号分隔，例如：Key,Chinese,English）：</label>
+                <input id="header-input" type="text" placeholder="Key,Chinese,English" style="width:60%" />
+            </div>
+            <div class="form-row">
+                <button id="process-btn">生成 MessagePack</button>
+            </div>
+            <div class="form-row">
+                <label><input id="dup-check" type="checkbox" checked /> 检查重复 Key（发现重复将取消生成）</label>
+            </div>
+            <pre id="status-area" style="white-space:pre-wrap;max-height:240px;overflow:auto"></pre>
         </div>
         <div class="tab-pane" id="tab-2">
             <h2>测试页签 2</h2>

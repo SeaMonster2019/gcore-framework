@@ -57,3 +57,52 @@
     margin: 0;
     color: var(--color-normal-contrast-weakest);
 }
+
+.form-row {
+    margin-bottom: 12px;
+}
+
+.folder-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.folder-picker > span {
+    min-width: 80px;
+}
+
+.folder-picker input[type="text"] {
+    flex: 1 1 420px;
+    min-width: 320px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-normal-border);
+    border-radius: 4px;
+    background: var(--color-normal-fill-weakest);
+    color: var(--color-normal-contrast);
+}
+
+.folder-picker button,
+#process-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--color-normal-border);
+    border-radius: 4px;
+    background: var(--color-normal-fill-weakest);
+    color: var(--color-normal-contrast);
+}
+
+.folder-picker button:hover,
+#process-btn:hover {
+    background: var(--color-normal-fill);
+}
+
+.status-info {
+    color: var(--color-normal-contrast);
+}
+
+.status-error {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
