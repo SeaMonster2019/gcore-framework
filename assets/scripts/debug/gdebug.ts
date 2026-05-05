@@ -44,4 +44,6 @@ class GDebug {
     }
 
 }
+
+/**  调试工具集 */
 export const gdebug = new GDebug();
