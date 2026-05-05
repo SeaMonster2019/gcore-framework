@@ -27,7 +27,7 @@
     },
     "panels": {
         "default": {
-            "title": "gcore-framework Default Panel",
+            "title": "gcore框架工具",
             "type": "dockable",
             "main": "dist/panels/default",
             "size": {
@@ -59,7 +59,7 @@
             },
             "send-to-panel": {
                 "methods": [
-                    "hello"
+                    "default.hello"
                 ]
             }
         },

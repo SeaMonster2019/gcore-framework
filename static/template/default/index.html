@@ -1,6 +1,16 @@
-<div>
-    <div id="app">
-        <my-counter></my-counter>
+<div id="panel-container">
+    <div class="tab-header">
+        <button class="tab-btn active" data-tab="tab-1">测试页签 1</button>
+        <button class="tab-btn" data-tab="tab-2">测试页签 2</button>
     </div>
-    <h1 id="text"></h1>
+    <div class="tab-content">
+        <div class="tab-pane active" id="tab-1">
+            <h2>测试页签 1</h2>
+            <p>这里用于展示第一个测试页签的内容。</p>
+        </div>
+        <div class="tab-pane" id="tab-2">
+            <h2>测试页签 2</h2>
+            <p>这里用于展示第二个测试页签的内容。</p>
+        </div>
+    </div>
 </div>

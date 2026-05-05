@@ -2,8 +2,8 @@
     "$schema": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json",
     "compilerOptions": {
         "target": "ES2017",
-        "moduleResolution": "bundler",
-        "module": "ESNext",
+        "moduleResolution": "node",
+        "module": "commonjs",
         "inlineSourceMap": true,
         "inlineSources": true,
         "esModuleInterop": true,
