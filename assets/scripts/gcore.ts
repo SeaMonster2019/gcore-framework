@@ -5,6 +5,7 @@ import { WindowMgr } from "./core/window/window-mgr";
 import { ResLoadMgr } from "./core/res-load/res-load-mgr";
 import { TipsMgr } from "./core/tips/tips-mgr";
 import { ConfigMgr } from "./core/config/config-mgr";
+import { I18nMgr } from "./core/i18n/i18nMgr";
 
 /** GCore初始化参数 */
 export interface IGCoreInitParams {
@@ -33,6 +34,8 @@ class GCore {
     private _tipsMgr: TipsMgr = new TipsMgr();
     /** 配置管理器 */
     private _configMgr: ConfigMgr = new ConfigMgr();
+    /** 多语言管理器 */
+    private _i18nMgr: I18nMgr = new I18nMgr();
 
     /** MVC管理器 */
     public get mvcMgr(): MvcMgr {
@@ -58,6 +61,10 @@ class GCore {
     public get configMgr(): ConfigMgr {
         return this._configMgr;
     }
+    /** 多语言管理器 */
+    public get i18nMgr(): I18nMgr {
+        return this._i18nMgr;
+    }
 
     /** 初始化 */
     public init(initParams: IGCoreInitParams): void {
@@ -76,9 +83,9 @@ class GCore {
         this._tipsMgr.init(initParams.dialogBoxParent, initParams.dialogBoxPrefab);
         //初始化存档管理器
         this._configMgr.init();
+        //初始化多语言管理器
+        this._i18nMgr.init();
     }
-
-
 }
 
 /** GCore全局实例 */
