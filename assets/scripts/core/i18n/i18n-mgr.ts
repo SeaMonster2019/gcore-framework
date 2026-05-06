@@ -1,5 +1,5 @@
 import { JsonAsset } from "cc";
-import { decode } from "@msgpack/msgpack";
+import msgpack from "@msgpack/msgpack";
 
 export type I18nPrimitive = string | number | boolean | null;
 export type I18nValue = I18nPrimitive | Record<string, unknown> | unknown[];
@@ -84,10 +84,9 @@ export class I18nMgr {
 
 	/** 从 MessagePack 加载语言表 */
 	public loadLanguageFromMessagePack(language: string, source: ArrayBuffer | Uint8Array): number {
-		const decoded = decode(source instanceof Uint8Array ? source : new Uint8Array(source));
-		if (!this._isPlainObject(decoded)) {
-			throw new Error("MessagePack 顶层结构必须是对象");
-		}
+		const uint8 = source instanceof Uint8Array ? source : new Uint8Array(source);
+		const decodeFn = (msgpack as any).decode ?? (msgpack as any).default?.decode ?? (msgpack as any);
+		const decoded: Record<string, unknown> = decodeFn(uint8) as Record<string, unknown>;
 		return this.mergeLanguage(language, decoded);
 	}
 

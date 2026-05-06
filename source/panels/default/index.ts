@@ -2,6 +2,7 @@
 
 import { readFileSync } from 'fs-extra';
 import { join } from 'path';
+import msgpack from '@msgpack/msgpack';
 /**
  * @zh 如果希望兼容 3.3 之前的版本可以使用下方的代码
  * @en You can add the code below if you want compatibility with versions prior to 3.3
@@ -98,8 +99,7 @@ function initI18nTool(panel: any) {
     const fs = require('fs-extra');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const path = require('path');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { encode } = require('@msgpack/msgpack');
+    // encode imported statically at module top
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Papa = require('papaparse');
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -320,7 +320,8 @@ function initI18nTool(panel: any) {
                 }
                 fs.ensureDirSync(langDir);
                 const outFile = path.join(langDir, `${lf}.msgpack`);
-                const packed = encode(overallLangMaps[lf]);
+                const encodeFn = (msgpack as any).encode ?? (msgpack as any).default?.encode ?? (msgpack as any);
+                const packed = encodeFn(overallLangMaps[lf]);
                 fs.writeFileSync(outFile, Buffer.from(packed));
                 appendStatus(`写入 ${outFile}`);
             } catch (err) {

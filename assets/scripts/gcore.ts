@@ -5,7 +5,7 @@ import { WindowMgr } from "./core/window/window-mgr";
 import { ResLoadMgr } from "./core/res-load/res-load-mgr";
 import { TipsMgr } from "./core/tips/tips-mgr";
 import { ConfigMgr } from "./core/config/config-mgr";
-import { I18nMgr } from "./core/i18n/i18nMgr";
+import { I18nMgr } from "./core/i18n/i18n-mgr";
 
 /** GCore初始化参数 */
 export interface IGCoreInitParams {

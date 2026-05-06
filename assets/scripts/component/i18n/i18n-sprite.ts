@@ -1,6 +1,6 @@
 import { _decorator, Component, Sprite, SpriteFrame } from "cc";
 import { gcore } from "../../gcore";
-import { i18nMgr, II18nSpriteValue } from "../../core/i18n/i18nMgr";
+import { i18nMgr, II18nSpriteValue } from "../../core/i18n/i18n-mgr";
 
 const { ccclass, property, menu } = _decorator;
 
