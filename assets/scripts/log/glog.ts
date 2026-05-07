@@ -60,6 +60,14 @@ class GLog {
         }
     }
 
+    /** 输出警告 */
+    public warn(message: string) {
+        console.warn(message);
+        if (this.warnCallback) {
+            this.warnCallback(message);
+        }
+    }
+
     /** 输出错误 */
     public error(message: string) {
         this.log(message, GCoreDefine.LogColor.FAILURE_COLOR);

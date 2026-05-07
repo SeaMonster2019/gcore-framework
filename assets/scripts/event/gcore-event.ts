@@ -38,6 +38,16 @@ export class GCoreEvent extends EventTarget {
         RES_LOAD_COMPLETE: `RES_LOAD_COMPLETE`,
     }
 
+    /** 语言切换 */
+    public static LANGUAGE_CHANGED = {
+        /** 切换语言 - 无参数 */
+        SWITCH_LANGUAGE: `SWITCH_LANGUAGE`,
+        /** 切换语言
+         * @param 切换的语言key
+         */
+        SWITCH_LANGUAGE_WITH_KEY: `SWITCH_LANGUAGE_WITH_KEY`,
+    }
+
 }
 
 export const gcoreEvent = new GCoreEvent();
