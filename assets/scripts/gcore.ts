@@ -38,31 +38,31 @@ class GCore {
     private _i18nMgr: I18nMgr = new I18nMgr();
 
     /** MVC管理器 */
-    public get mvcMgr(): MvcMgr {
+    public get mvc(): MvcMgr {
         return this._mvcMgr;
     }
     /** 资源加载管理器 */
-    public get resMgr(): ResLoadMgr {
+    public get res(): ResLoadMgr {
         return this._resMgr;
     }
     /** 游戏状态管理器 */
-    public get gfsmMgr(): FsmMgr {
+    public get gfs(): FsmMgr {
         return this._gfsmMgr;
     }
     /** 窗口管理器 */
-    public get windowMgr(): WindowMgr {
+    public get window(): WindowMgr {
         return this._windowMgr;
     }
     /** 提示管理器 */
-    public get tipsMgr(): TipsMgr {
+    public get tips(): TipsMgr {
         return this._tipsMgr;
     }
     /** 配置系统 */
-    public get configMgr(): ConfigMgr {
+    public get config(): ConfigMgr {
         return this._configMgr;
     }
     /** 多语言管理器 */
-    public get i18nMgr(): I18nMgr {
+    public get i18n(): I18nMgr {
         return this._i18nMgr;
     }
 

@@ -60,7 +60,7 @@ export class I18nLabel extends Component {
 		if (!this.label || !this.i18nKey) {
 			return;
 		}
-		this.label.string = gcore.i18nMgr.getText(this.i18nKey);
+		this.label.string = gcore.i18n.getText(this.i18nKey);
 	}
 
 }

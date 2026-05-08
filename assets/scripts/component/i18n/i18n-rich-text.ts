@@ -1,5 +1,6 @@
 import { _decorator, CCString, Component, RichText } from "cc";
 import { gcore } from "../../gcore";
+import { GCoreEvent, gcoreEvent } from "../../event/gcore-event";
 
 const { ccclass, property, menu } = _decorator;
 
@@ -26,13 +27,15 @@ export class I18nRichText extends Component {
 		this._richText = this.getComponent(RichText);
 	}
 
+	/** 激活 */
 	protected onEnable(): void {
-		gcore.i18nMgr.onLanguageChanged(this._refresh, this);
+		gcoreEvent.on(GCoreEvent.LANGUAGE_CHANGED.SWITCH_LANGUAGE, this._refresh, this);
 		this._refresh();
-	}
+	}	
 
+	/** 失活 */
 	protected onDisable(): void {
-		gcore.i18nMgr.offLanguageChanged(this._refresh, this);
+		gcoreEvent.off(GCoreEvent.LANGUAGE_CHANGED.SWITCH_LANGUAGE, this._refresh, this);
 	}
 
 	/** 设置 key 并刷新 */
@@ -57,7 +60,7 @@ export class I18nRichText extends Component {
 		}
 
 		const fallback = this.fallback || this.i18nKey;
-		this._richText.string = gcore.i18nMgr.getText(this.i18nKey, fallback, this.params);
+		this._richText.string = gcore.i18n.getText(this.i18nKey);
 	}
 
 }

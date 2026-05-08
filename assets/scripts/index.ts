@@ -9,7 +9,6 @@ export * from "./component/base/yu-comp";
 export * from "./component/button/long-btn";
 export * from "./component/i18n/i18n-label";
 export * from "./component/i18n/i18n-rich-text";
-export * from "./component/i18n/i18n-sprite";
 export * from "./component/prefab/prefab-create";
 export * from "./component/prefab/prefab-list";
 export * from "./component/prefab/prefab-pool";
