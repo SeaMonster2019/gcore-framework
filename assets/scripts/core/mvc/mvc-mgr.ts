@@ -1,9 +1,9 @@
-import { instantiate, isValid, Node, Prefab, Quat, screen, UITransform, view } from "cc";
+import { instantiate, isValid, Node, Prefab, screen, UITransform, view } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { BaseView, IViewParams } from "./base-view";
+import { IViewParams } from "./base-view";
 import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
-import { IMvcParams, ViewType } from "./mvc-interface";
+import { IMvcParams, IViewHandle, IViewParamMap, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
 
 /** mvc构造器函数 */
 export interface IMvcMrgParams {
@@ -80,26 +80,19 @@ export class MvcMgr {
     /********************************************/
 
     /** 打开视图
-     * @typeParam P 视图参数类型
-     * @typeParam V 视图实例类型
-     * @param viewClass 视图类
-     * @param param 视图参数
-     * @returns 视图组件实例
+     * @typeParam K 视图类型id
+     * @param tid 视图类型id
+     * @param param 视图参数：若对应参数类型存在必填字段，则此参数必填；否则可省略
+     * @returns 视图实例句柄
      */
-    public async open<P extends IViewParams, V extends BaseView<P>>(viewClass: typeof BaseView<P>, param: P): Promise<V> {
+    public async open<K extends ViewId>(tid: K, ...args: ViewOpenArgs<IViewParamMap[K]>): Promise<IViewHandle> {
 
-        // 根据 View 类型查找对应的 MVC 参数
-        let mvcParams;
-        for (const [, value] of this._paramsMap) {
-            if (value.ViewType === viewClass) {
-                mvcParams = value
-                break;
-            }
-        }
+        // 根据类型id查找对应的 MVC 参数
+        const mvcParams = this._paramsMap.get(tid);
         if (!mvcParams) {
-            throw new Error(`MVC参数不存在: ${viewClass.name}`);
+            throw new Error(`MVC参数不存在: ${tid}`);
         }
-        const tid = mvcParams.tid;
+        const param = (args[0] ?? {}) as IViewParamMap[K];
 
         // 检查是否已有实例
         const existing = this._viewMap.get(tid);
@@ -118,7 +111,7 @@ export class MvcMgr {
                             existView.node.active = true;
                         }
                         existView.onRefresh();
-                        return existView as V;
+                        return this._createViewHandle(tid, existView);
                     } else {
                         // 旧实例失效，移除映射，继续创建新实例
                         this._viewMap.delete(tid);
@@ -151,8 +144,8 @@ export class MvcMgr {
         // 发送"打开视图"事件
         gcoreEvent.emit(GCoreEvent.MVC_EVENT.OPEN_VIEW, tid, view);
 
-        // 返回View实例
-        return view as V;
+        // 返回视图句柄
+        return this._createViewHandle(tid, view);
     }
 
     /** 关闭视图
@@ -386,6 +379,22 @@ export class MvcMgr {
         view.onRefresh();
 
         return view;
+    }
+
+    /** 创建视图句柄
+     * @param tid 类型id
+     * @param view 视图实例
+     * @returns 视图实例句柄
+     */
+    private _createViewHandle(tid: number, view: ViewType): IViewHandle {
+        const iid = view.getIid();
+        return {
+            tid,
+            iid,
+            close: (destroy?: boolean) => {
+                this.close(tid, destroy, iid);
+            },
+        };
     }
 
     /** 窗口大小改变回调，对需要适配的视图重新适配 */
