@@ -5,6 +5,27 @@ import { BaseView, IViewParams } from "./base-view";
 /** 视图类型别名 */
 export type ViewType = BaseView<IViewParams>;
 
+/** MVC视图ID到打开参数的映射，可在业务工程中通过模块扩展补充具体视图参数类型 */
+export interface IViewParamMap {
+    [tid: number]: IViewParams;
+}
+
+/** MVC视图ID */
+export type ViewId = keyof IViewParamMap & number;
+
+/** 根据视图参数是否存在必填字段，决定open时参数是否必填 */
+export type ViewOpenArgs<P extends IViewParams> = {} extends P ? [param?: P] : [param: P];
+
+/** 视图打开后返回的轻量句柄，避免调用方直接依赖具体View实现 */
+export interface IViewHandle {
+    /** 类型id */
+    readonly tid: number;
+    /** 实例id */
+    readonly iid: number;
+    /** 关闭当前视图实例 */
+    close(destroy?: boolean): void;
+}
+
 /** MVC参数 */
 export interface IMvcParams {
     /** 类型id */
