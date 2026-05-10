@@ -1,22 +1,32 @@
+import { Node, Prefab } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { BaseView, IViewParams } from "./base-view";
+import { BaseView } from "./base-view";
+
+/** 视图参数接口，可由业务层扩展 */
+export interface IViewParams {
+    /** 关闭回调 */
+    onClose?: () => void;
+}
 
 /** 视图类型别名，表示通用的BaseView实例 */
 export type ViewType = BaseView<IViewParams>;
+
+/** MVC视图ID，从IViewParamMap中提取有效的数字键 */
+export type ViewId = keyof IViewParamMap & number;
+
+/** 视图打开参数列表，根据参数类型决定open时是否必填
+ * - P为undefined时：无需传参 → []
+ * - P所有字段均为可选时：参数可选 → [param?: P]
+ * - P存在必填字段时：参数必填 → [param: P]
+ * 使用标签元组，IDE中显示为 param 而非 args
+ */
+export type ViewOpenArgs<P> = P extends undefined ? [] : ({} extends P ? [param?: P] : [param: P]);
 
 /** MVC视图ID到打开参数的映射，可在业务工程中通过模块扩展补充具体视图参数类型 */
 export interface IViewParamMap {
     [tid: number]: IViewParams;
 }
-
-/** MVC视图ID，从IViewParamMap中提取有效的数字键 */
-export type ViewId = keyof IViewParamMap & number;
-
-/** 根据视图参数是否存在必填字段，决定open时参数是否必填
- * @typeParam P 视图参数类型
- */
-export type ViewOpenArgs<P extends IViewParams> = {} extends P ? [param?: P] : [param: P];
 
 /** 视图打开后返回的轻量句柄，避免调用方直接依赖具体View实现 */
 export interface IViewHandle {
@@ -60,5 +70,13 @@ export interface IViewAttribute {
     bResident?: boolean;
     /** 是否适配屏幕，为true时视图会自动适配可见区域大小 */
     bIsdaptation?: boolean;
+}
+
+/** MVC管理器初始化参数 */
+export interface IMvcMrgParams {
+    /** 视图根节点，所有视图将挂载到此节点下 */
+    root: Node;
+    /** 预制体异步加载函数，根据预制体名和包名加载Prefab资源 */
+    viewPrefabFunc: (prefab: string, pack: string) => Promise<Prefab>;
 }
 

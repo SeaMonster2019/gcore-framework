@@ -1,17 +1,9 @@
-import { instantiate, isValid, Node, Prefab, screen, UITransform, view } from "cc";
+import { instantiate, isValid, Node, screen, UITransform, view } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { IViewParams } from "./base-view";
+import { IViewParams } from "./mvc-interface";
 import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
-import { IMvcParams, IViewHandle, IViewParamMap, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
-
-/** MVC管理器初始化参数 */
-export interface IMvcMrgParams {
-    /** 视图根节点，所有视图将挂载到此节点下 */
-    root: Node;
-    /** 预制体异步加载函数，根据预制体名和包名加载Prefab资源 */
-    viewPrefabFunc: (prefab: string, pack: string) => Promise<Prefab>;
-}
+import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
 
 /** MVC管理器，负责MVC框架的注册、视图的创建与销毁等核心管理 */
 export class MvcMgr {

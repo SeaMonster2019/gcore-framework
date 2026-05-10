@@ -65,7 +65,7 @@ mvc/
 | `init(params)` | 初始化管理器，传入根节点与预制体加载函数 |
 | `register(params)` | 注册单个 MVC 模块 |
 | `registerAll(params[], callback?)` | 批量注册 MVC 模块 |
-| `open(tid, params?)` | 打开视图，返回 `IViewHandle` |
+| `open(tid, ...args)` | 打开视图，参数类型由 `IViewParamMap` 自动推断，返回 `IViewHandle` |
 | `close(tid, destroy?, iid?)` | 关闭视图 |
 | `closeAll(destroy, excludeTids?)` | 关闭所有视图 |
 | `getView(tid, iid?)` | 获取视图实例 |
@@ -108,6 +108,33 @@ interface IViewParams {
     onClose?: () => void;  // 关闭回调（可选）
 }
 ```
+
+### IViewParamMap — 视图参数映射（重要）
+
+`IViewParamMap` 是 `open()` 方法类型安全的**核心依赖**。它将模块 id 映射到对应的视图参数类型，使 TypeScript 能在调用 `open(tid, param)` 时自动推断参数是否必填以及参数的具体类型。
+
+```typescript
+// gcore 中的基础定义（业务工程必须通过 declare module 扩展）
+interface IViewParamMap {
+    [tid: number]: IViewParams;  // 默认兜底
+}
+```
+
+**业务工程必须扩展此接口**，否则 `open()` 的参数类型将退化为 `IViewParams`，失去类型检查。扩展方式见下方 [扩展 IViewParamMap](#扩展-iviewparammap) 章节。
+
+### ViewOpenArgs — 打开参数推断
+
+```typescript
+type ViewOpenArgs<P> = P extends undefined ? [] : ({} extends P ? [param?: P] : [param: P]);
+```
+
+根据 `IViewParamMap` 中的参数类型，自动决定 `open()` 的参数形式：
+
+| 参数类型 | 效果 | 示例 |
+|----------|------|------|
+| `undefined` | 无需传参 | `open(EModule.StarSector)` |
+| 全可选字段 | 参数可选 | `open(EModule.ShipInfo)` 或 `open(EModule.ShipInfo, { onClose: ... })` |
+| 有必填字段 | 参数必填 | `open(EModule.MainMenu, { onNewGame: ..., onLoadGame: ..., onExitGame: ... })` |
 
 ### IViewHandle — 视图句柄
 
@@ -175,6 +202,7 @@ export class MainMenuView extends BaseView<IMainMenuViewParams> {
 
 ```typescript
 import { BaseCtrl, gcore } from "gcore";
+import { EModule } from "./define-view";
 
 export class MainMenuCtrl extends BaseCtrl {
 
@@ -185,7 +213,7 @@ export class MainMenuCtrl extends BaseCtrl {
 
     /** 打开子界面示例 */
     public openSubMenu(): void {
-        gcore.mvc.open(SubmenuView, { /* params */ });
+        gcore.mvc.open(EModule.Submenu, { /* params */ });
     }
 }
 ```
@@ -242,12 +270,15 @@ gcore.mvc.register(UiDefine[0]);
 ```typescript
 import { gcore } from "gcore";
 
-// 打开视图（无必填参数时可省略）
+// 打开视图（有必填参数时，TypeScript会强制要求传入）
 const handle = await gcore.mvc.open(EModule.MainMenu, {
     onNewGame: async () => { /* ... */ },
     onLoadGame: async (key) => { /* ... */ },
     onExitGame: () => { /* ... */ },
 });
+
+// 无参数视图，无需传第二个参数
+await gcore.mvc.open(EModule.StarSector);
 
 // 通过句柄关闭
 handle.close();
@@ -277,6 +308,45 @@ const ctrl = gcore.mvc.getCtrl<MainMenuCtrl>(EModule.MainMenu);
 const model = gcore.mvc.getModel(MainMenuModel);
 const ctrl = gcore.mvc.getCtrl(MainMenuCtrl);
 ```
+
+## 扩展 IViewParamMap（重要）
+
+> **这是 `open()` 类型安全的必要步骤，未扩展将失去参数类型检查！**
+
+在业务工程中，必须通过 `declare module "gcore"` 扩展 `IViewParamMap`，将模块 id 枚举映射到对应的视图参数类型。推荐将扩展声明放在独立的 `.d.ts` 文件中（如 `type-view.d.ts`）。
+
+### 扩展方式
+
+```typescript
+// type-view.d.ts
+import { IMainMenuViewParams } from "../module/main-menu/main-menu-view";
+import { ITestViewParams } from "../module/test/test-view";
+import { EModule } from "./define-view";
+
+declare module "gcore" {
+    interface IViewParamMap {
+        /** 有必填参数的视图，open 时必须传入第二个参数 */
+        [EModule.MainMenu]: IMainMenuViewParams;
+        [EModule.Test]: ITestViewParams;
+        /** 无参数的视图，映射为 undefined，open 时无需传参 */
+        [EModule.StarSector]: undefined;
+    }
+}
+```
+
+### 参数映射规则
+
+| 映射值 | 效果 | 示例 |
+|--------|------|------|
+| 参数接口（有必填字段） | `open` 时参数**必填** | `[EModule.MainMenu]: IMainMenuViewParams` |
+| 参数接口（全可选字段） | `open` 时参数**可选** | `[EModule.ShipInfo]: IViewParams` |
+| `undefined` | `open` 时**无需传参** | `[EModule.StarSector]: undefined` |
+
+### 为什么必须扩展？
+
+- 未扩展时，`open(tid, ...)` 的参数类型退化为 `IViewParams`，TypeScript 无法推断具体参数
+- 扩展后，`open(EModule.MainMenu, ...)` 的第二个参数会被精确推断为 `IMainMenuViewParams`，缺少必填字段会编译报错
+- 新增视图模块时，务必同步在 `IViewParamMap` 中添加映射，否则该模块的 `open` 调用将无类型检查
 
 ## 视图属性说明
 
@@ -309,8 +379,9 @@ close()
 
 ## 注意事项
 
-1. **预制体绑定**：预制体根节点必须挂载对应的 `ViewType` 组件，否则会报错
-2. **常驻视图**：`bResident` 必须配合 `bIsOnly: true` 使用，常驻视图 close 时仅隐藏
-3. **视图参数泛型**：通过 `extends IViewParams` 扩展参数接口，框架会根据参数是否包含必填字段自动推断 `open` 时参数是否必传
-4. **多实例**：不设置 `bIsOnly` 时允许同一视图打开多个实例，关闭时可通过 `iid` 指定关闭某个实例
-5. **类型安全**：在 View 中使用 `declare` 关键字声明具体的 Ctrl 和 Model 类型，以获得完整的类型提示
+1. **扩展 IViewParamMap**：业务工程**必须**通过 `declare module "gcore"` 扩展 `IViewParamMap`，否则 `open()` 的参数将失去类型检查
+2. **预制体绑定**：预制体根节点必须挂载对应的 `ViewType` 组件，否则会报错
+3. **常驻视图**：`bResident` 必须配合 `bIsOnly: true` 使用，常驻视图 close 时仅隐藏
+4. **视图参数泛型**：通过 `extends IViewParams` 扩展参数接口，配合 `IViewParamMap` 映射，框架会自动推断 `open` 时参数是否必传
+5. **多实例**：不设置 `bIsOnly` 时允许同一视图打开多个实例，关闭时可通过 `iid` 指定关闭某个实例
+6. **类型安全**：在 View 中使用 `declare` 关键字声明具体的 Ctrl 和 Model 类型，以获得完整的类型提示
