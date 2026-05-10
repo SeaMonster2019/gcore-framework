@@ -4,7 +4,7 @@ const { ccclass, property, menu } = _decorator;
 /** 预制体池 */
 @ccclass("PrefabPool")
 @menu("GCore/Prefab/PrefabPool")
-export default class PrefabPool extends Component {
+export class PrefabPool extends Component {
 
     /** 预制体 */
     @property({ type: Prefab, tooltip: "预制体" })

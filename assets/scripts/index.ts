@@ -36,5 +36,6 @@ export * from "./log/glog";
 export * from "./utils/action/action-back-and-forth-comp";
 export * from "./utils/action/action-scale-to-comp";
 export * from "./utils/action/tween-action";
+export * from "./utils/math/math";
 export * from "./utils/math/create-uiid";
 export * from "./utils/math/pcg-random";

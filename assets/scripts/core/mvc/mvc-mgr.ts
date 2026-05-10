@@ -109,7 +109,7 @@ export class MvcMgr {
         // 实例化界面节点
         const view = await this._createViewNode(mvcParams, param);
         if (!view) {
-            throw new Error(`视图组件不存在: ${mvcParams.ViewType.name} ，tid:${tid}, 请检查预制体是否正确`);
+            throw new Error(`视图组件不存在tid:${tid}, 请检查预制体是否正确`);
         }
 
         // 存储到视图映射表：若允许多个实例则保存数组，否则保存单实例
@@ -322,7 +322,7 @@ export class MvcMgr {
         // 初始化View组件
         const view = this._initViewNode(newNode, mvcParams, viewParams);
         if (!view) {
-            console.error(`视图组件不存在: ${mvcParams.ViewType.name} ，tid:${mvcParams.tid}, 请检查预制体是否正确`);
+            console.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
             newNode.destroy();
             return null;
         }
@@ -342,7 +342,7 @@ export class MvcMgr {
 
         // 如果没有获取到视图组件，报错并返回
         if (!view) {
-            console.error(`视图组件不存在: ${mvcParams.ViewType.name} ，tid:${mvcParams.tid}, 请检查预制体是否正确`);
+            console.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
             return null;
         }
 
@@ -352,7 +352,7 @@ export class MvcMgr {
         const ctrl = this._ctrlMap.get(tid);
         const model = this._modelMap.get(tid);
         if (!ctrl || !model) {
-            console.error(`控制器或数据模型不存在: ${mvcParams.ViewType.name} ，tid:${mvcParams.tid}, 请检查控制器或数据模型是否正确`);
+            console.error(`控制器或数据模型不存在tid:${mvcParams.tid}, 请检查控制器或数据模型是否正确`);
             return null;
         }
 
