@@ -2,38 +2,35 @@ import { UiComp } from "../../component/base/yu-comp";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 
-/** 视图参数 */
+/** 视图参数接口，可由业务层扩展 */
 export interface IViewParams {
     /** 关闭回调 */
     onClose?: () => void;
 }
 
-/** 视图基类，MVC架构中的视图层基类 */
+/** 视图基类，MVC架构中的视图层基类，继承自UiComp */
 export class BaseView<P extends IViewParams> extends UiComp {
 
     /** 类型id */
     protected declare _tid: number;
     /** 实例id */
     protected declare _iid: number;
-    /** 控制器 */
+    /** 关联的控制器实例 */
     protected declare _ctrl: BaseCtrl;
-    /** 数据模型 */
+    /** 关联的数据模型实例 */
     protected declare _model: BaseModel;
     /** 视图参数 */
     protected declare _params: P;
-
-    /** 关闭回调 */
+    /** 关闭当前视图的方法，由框架在初始化时绑定 */
     public declare close: () => void;
 
-    /********************************************
-    /** 生命周期 **/
-    /********************************************/
+    /****************  生命周期  ****************/
 
-    /** 初始化视图
+    /** 初始化视图，由框架在创建视图实例时自动调用
      * @param tid 类型id
      * @param iid 实例id
-     * @param baseCtrl 控制器
-     * @param baseData 数据模型
+     * @param baseCtrl 控制器实例
+     * @param baseData 数据模型实例
      * @param viewParams 视图参数
      */
     public onInit(tid: number, iid: number, baseCtrl: BaseCtrl, baseData: BaseModel, viewParams: P) {
@@ -44,31 +41,31 @@ export class BaseView<P extends IViewParams> extends UiComp {
         this._params = viewParams;
     }
 
-    /** 打开视图回调 */
+    /** 视图打开回调，节点首次创建并显示后触发 */
     public onOpen(): void { }
 
-    /** 刷新视图回调 */
+    /** 视图刷新回调，复用已有实例时触发 */
     public onRefresh(): void { }
 
-    /********************************************
-    /** 公共方法 **/
-    /********************************************/
+    /****************  公共方法  ****************/
 
-    /** 获取类型id */
+    /** 获取类型id
+     * @returns 类型id
+     */
     public getTid(): number {
         return this._tid;
     }
 
-    /** 获取实例id */
+    /** 获取实例id
+     * @returns 实例id
+     */
     public getIid(): number {
         return this._iid;
     }
 
-    /********************************************
-    /** 保护方法 **/
-    /********************************************/
+    /****************  保护方法  ****************/
 
-    /** 关闭按钮点击事件 */
+    /** 关闭按钮点击事件，调用框架绑定的close方法 */
     protected onBtnClose(): void {
         this.close?.();
     }

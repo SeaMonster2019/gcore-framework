@@ -5,14 +5,13 @@ export class BaseModel {
 
     /** 类型id */
     private _tid: number;
-    /** 类型id */
+
+    /** 获取类型id */
     public get tid(): number {
         return this._tid;
     }
 
-    /********************************************
-    /** 生命周期 **/
-    /********************************************/
+    /****************  生命周期  ****************/
 
     /** 构造函数
      * @param mvcParam MVC参数
@@ -21,10 +20,10 @@ export class BaseModel {
         this._tid = mvcParam.tid;
     }
 
-    /** 初始化 */
+    /** 初始化回调，注册后由框架自动调用 */
     public onInit() { }
 
-    /** 销毁 */
+    /** 销毁回调 */
     public onDestroy() { }
 
 }
