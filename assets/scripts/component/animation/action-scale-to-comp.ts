@@ -1,5 +1,5 @@
 import { _decorator, Component, Node, CCFloat, Vec3 } from 'cc';
-import { ActionScaleTo } from './tween-action';
+import { ActionScaleTo } from '../../utils/action/tween-action';
 
 const { ccclass, property, menu } = _decorator;
 
@@ -10,13 +10,10 @@ export class ActionScaleToComp extends Component {
 
     @property({ type: Node, displayName: "目标节点", tooltip: "要执行动作的节点，为空则使用自身" })
     protected targetNode: Node | null = null;
-
     @property({ displayName: "目标缩放值", tooltip: "绝对缩放值，例如(1,1,1)表示原始大小，(2,2,1)表示X和Y放大2倍" })
     protected targetScale: Vec3 = new Vec3(1, 1, 1);
-
     @property({ type: CCFloat, displayName: "持续时间(秒)", min: 0, tooltip: "动作执行的持续时间" })
     protected duration: number = 0.3;
-
     @property({ type: Node, displayName: "显示节点", tooltip: "放大完成时显示，开始缩小时隐藏的节点（可选）" })
     protected displayNode: Node | null = null;
 

@@ -1,5 +1,5 @@
 import { _decorator, CCFloat, Component, Node, Vec3 } from 'cc';
-import { ActionBackAndForth } from './tween-action';
+import { ActionBackAndForth } from '../../utils/action/tween-action';
 
 
 const { ccclass, property, menu } = _decorator;
@@ -11,10 +11,8 @@ export class ActionBackAndForthComp extends Component {
 
     @property({ type: Node, displayName: "目标节点", tooltip: "要执行动作的节点，为空则使用自身" })
     targetNode: Node | null = null;
-
     @property({ displayName: "位移偏移量", tooltip: "相对于起始位置的偏移量，例如(50,50,0)表示向右移动50，向上移动50" })
     offset: Vec3 = new Vec3(0, 0, 0);
-
     @property({ type: CCFloat, displayName: "持续时间(秒)", min: 0, tooltip: "动作执行的持续时间" })
     duration: number = 1.0;
 
