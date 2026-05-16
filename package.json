@@ -4,7 +4,7 @@
     "name": "gcore-framework",
     "version": "1.0.0",
     "author": "SeaMonster1919",
-    "editor": ">=3.8.8",
+    "editor": ">=3.8.7",
     "scripts": {
         "preinstall": "node ./scripts/preinstall.js",
         "build": "npx tsc",
