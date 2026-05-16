@@ -1,7 +1,6 @@
 /** 存储配置 */
 export const GCoreDefine = {
 
-
     /********************************************/
     /** 打印日志相关 **/
     /********************************************/
@@ -16,6 +15,8 @@ export const GCoreDefine = {
         FAILURE_COLOR: "color: rgb(220, 20, 60);",
         /** 网络层 */
         NETWORK_COLOR: "color: rgb(255, 165, 0);"
-    }
+    },
 
+    /** 默认lru大小 */
+    DEFAULT_LRU_CAPACITY: 100,
 }
