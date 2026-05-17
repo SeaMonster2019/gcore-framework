@@ -1,5 +1,6 @@
 import { Asset, AssetManager, Sprite, SpriteAtlas, SpriteFrame } from "cc";
 import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
+import { ResHandler } from "./res-handler";
 
 type Bundle = AssetManager.Bundle;
 
@@ -213,7 +214,7 @@ export class ResLoadMgr {
      * @typeParam T 资源类型
      * @returns 资源实例
      */
-    public async loadRes<T extends Asset>(resPath: string, packName: string): Promise<T> {
+    public async loadRes<T extends Asset>(resPath: string, packName: string): Promise<ResHandler<T>> {
 
         const key = this.getResKey(packName, resPath);
         const loadedInfo = this._resRefMap.get(key);
@@ -221,7 +222,7 @@ export class ResLoadMgr {
             // 命中缓存，获取资源
             this.acquireLoadedRes(loadedInfo);
             gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
-            return loadedInfo.asset as T;
+            return this.createResHandler(loadedInfo.asset as T, resPath, packName);
         }
 
         // 创建或复用加载任务
@@ -231,7 +232,7 @@ export class ResLoadMgr {
         if (info) {
             this.acquireLoadedRes(info);
             gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
-            return info.asset as T;
+            return this.createResHandler(info.asset as T, resPath, packName);
         }
 
         // 检查是否已由 Core 策略固定
@@ -255,7 +256,7 @@ export class ResLoadMgr {
         });
         gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
 
-        return asset;
+        return this.createResHandler(asset, resPath, packName);
     }
 
     /** 为已加载的资源增加一个业务引用
@@ -414,17 +415,18 @@ export class ResLoadMgr {
             return false;
         }
 
-        const asset = await this.loadRes<SpriteFrame>(resPath, packName);
+        const handle = await this.loadRes<SpriteFrame>(resPath, packName);
+        const asset = handle.asset;
 
         // 类型校验
         if (!(asset instanceof SpriteFrame)) {
-            this.releaseRes(resPath, packName);
+            handle.release();
             throw new Error(`资源类型错误，期望 SpriteFrame。packName:${packName} resPath:${resPath}`);
         }
 
         // 再次检查 Sprite 有效性
         if (!sprite.isValid) {
-            this.releaseRes(resPath, packName);
+            handle.release();
             console.warn("Sprite 无效。");
             return false;
         }
@@ -443,17 +445,18 @@ export class ResLoadMgr {
      */
     public async setSpriteFormAtlas(resPath: string, spriteFrameName: string, packName: string, sprite: Sprite): Promise<boolean> {
 
-        const asset = await this.loadRes<SpriteAtlas>(resPath, packName);
+        const handle = await this.loadRes<SpriteAtlas>(resPath, packName);
+        const asset = handle.asset;
 
         // 类型校验
         if (!(asset instanceof SpriteAtlas)) {
-            this.releaseRes(resPath, packName);
+            handle.release();
             throw new Error(`资源类型错误，期望 SpriteAtlas。packName:${packName} resPath:${resPath}`);
         }
 
         // 检查 Sprite 有效性
         if (!sprite.isValid) {
-            this.releaseRes(resPath, packName);
+            handle.release();
             console.warn("Sprite 无效。");
             return false;
         }
@@ -461,7 +464,7 @@ export class ResLoadMgr {
         // 获取图集中的帧
         const sf = asset.getSpriteFrame(spriteFrameName);
         if (!sf) {
-            this.releaseRes(resPath, packName);
+            handle.release();
             throw new Error(`SpriteFrame 不存在。packName:${packName} resPath:${resPath} name:${spriteFrameName}`);
         }
 
@@ -477,6 +480,18 @@ export class ResLoadMgr {
      * @param resPath 资源路径
      * @returns 格式为 "包名:资源路径" 的唯一键
      */
+    /** 创建资源句柄，句柄释放时回到管理器减少引用计数
+     * @param asset 资源实例
+     * @param resPath 资源路径
+     * @param packName 包名
+     * @returns 资源句柄
+     */
+    private createResHandler<T extends Asset>(asset: T, resPath: string, packName: string): ResHandler<T> {
+        return new ResHandler(asset, () => {
+            this.releaseRes(resPath, packName);
+        });
+    }
+
     private getResKey(packName: string, resPath: string): string {
         return `${packName}:${resPath}`;
     }
