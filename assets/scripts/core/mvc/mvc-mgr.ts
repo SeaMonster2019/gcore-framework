@@ -297,18 +297,15 @@ export class MvcMgr {
     private async _createViewNode(mvcParams: IMvcParams, viewParams?: IViewParams): Promise<ViewType | null> {
 
         // 通过加载函数获取Prefab资源
-        const prefabHandle = await this._params.viewPrefabFunc(mvcParams.prefabName, mvcParams.packName);
-        const prefab = prefabHandle.asset;
+        const prefab = await this._params.viewPrefabFunc(mvcParams.prefabName, mvcParams.packName);
 
         if (!prefab) {
-            prefabHandle.release();
             console.error(`预制体不存在: ${mvcParams.prefabName}, tid:${mvcParams.tid}, 请检查预制体是否正确`);
             return null;
         }
 
         // 实例化预制体，创建新的节点
         const newNode = instantiate(prefab);
-        prefabHandle.release();
 
         // 设置新节点的父节点为根节点
         newNode.setParent(this._params.root);

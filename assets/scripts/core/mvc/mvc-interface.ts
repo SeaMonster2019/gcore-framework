@@ -2,7 +2,6 @@ import { Node, Prefab } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 import { BaseView } from "./base-view";
-import { ResHandler } from "../res-load/res-handler";
 
 /** 视图参数接口，可由业务层扩展 */
 export interface IViewParams {
@@ -78,6 +77,8 @@ export interface IMvcMrgParams {
     /** 视图根节点，所有视图将挂载到此节点下 */
     root: Node;
     /** 预制体异步加载函数，根据预制体名和包名加载Prefab资源 */
-    viewPrefabFunc: (prefab: string, pack: string) => Promise<ResHandler<Prefab>>;
+    viewPrefabFunc: (prefab: string, pack: string) => Promise<Prefab>;
+    /** 预制体释放函数，用于在实例化后释放资源引用 */
+    viewPrefabReleaseFunc?: (prefab: string, pack: string) => void;
 }
 

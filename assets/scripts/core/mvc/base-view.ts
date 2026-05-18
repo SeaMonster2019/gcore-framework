@@ -1,10 +1,10 @@
-import { UiComp } from "../../component/base/yu-comp";
+import { BaseUi } from "../../component/base/base-ui";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 import { IViewParams } from "./mvc-interface";
 
 /** 视图基类，MVC架构中的视图层基类，继承自UiComp */
-export class BaseView<P extends IViewParams> extends UiComp {
+export class BaseView<P extends IViewParams|undefined> extends BaseUi {
 
     /** 类型id */
     protected declare _tid: number;

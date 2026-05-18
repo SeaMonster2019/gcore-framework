@@ -73,6 +73,9 @@ class GCore {
             root: initParams.uiRoot,
             viewPrefabFunc: (prefab: string, pack: string) => {
                 return this._resMgr.loadRes<Prefab>(prefab, pack);
+            },
+            viewPrefabReleaseFunc: (prefab: string, pack: string) => {
+                this._resMgr.releaseRes(prefab, pack);
             }
         });
         //初始化资源管理器

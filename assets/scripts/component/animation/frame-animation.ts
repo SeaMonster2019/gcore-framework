@@ -1,0 +1,287 @@
+import { _decorator, Component, SpriteFrame, Sprite, CCFloat, Animation, AnimationClip, Enum } from 'cc';
+import { EFrameAnimationCurve } from '../../define/gcore-define';
+const { ccclass, property, menu, requireComponent, executeInEditMode } = _decorator;
+
+/** 程序化帧动画组件（使用 AnimationClip / Animation） */
+@ccclass('FrameAnimation')
+@menu(`GCore/Animation/FrameAnimation`)
+@requireComponent(Sprite)
+@requireComponent(Animation)
+@executeInEditMode
+export class FrameAnimation extends Component {
+
+    /** 序列帧图片列表 */
+    @property([SpriteFrame]) 
+    protected spriteFrames: SpriteFrame[] = [];
+    /** 播放速度（帧/秒） */
+    @property({ type: CCFloat, displayName: "播放速度(帧/秒)", min: 0.1, tooltip: "每秒播放的帧数" })
+    playSpeed: number = 10;
+    /** 是否循环播放 */
+    @property({ displayName: "循环播放", tooltip: "动画是否循环播放" })
+    loop: boolean = true;
+    /** 时间轴曲线类型 */
+    @property({ type: Enum(EFrameAnimationCurve), displayName: "时间轴曲线", tooltip: "使用 Cocos Creator 内置 easing 曲线控制关键帧间的时间插值" })
+    curve: EFrameAnimationCurve = EFrameAnimationCurve.Linear;
+
+    @property({ displayName: "编辑器预览", tooltip: "在编辑器中勾选以预览动画" })
+    get preview(): boolean {
+        return this._preview;
+    }
+    set preview(val: boolean) {
+        this._preview = val;
+        if (val) {
+            this._initAnimation();
+            this.play();
+        } else {
+            this.stop();
+        }
+    }
+    private _preview: boolean = false;
+
+    /** Animation 组件引用 */
+    private _animation: Animation | undefined;
+    /** Sprite 组件引用 */
+    private _sprite: Sprite | undefined;
+    /** 动画剪辑实例 */
+    private _clip: AnimationClip | undefined;
+    /** 动画剪辑名称（唯一标识） */
+    private _clipName: string = '__frame_animation_clip__';
+    /** 当前播放的帧索引 */
+    private _currentFrameIndex: number = 0;
+
+    /** 动态精灵帧资源-区别于静态资源 */
+    private _dynamicSpriteFrames: SpriteFrame[]= [];
+
+    /** 获取精灵帧 */
+    private get _spriteFrames(): SpriteFrame[] {
+        return this._dynamicSpriteFrames.length > 0 ? this._dynamicSpriteFrames : this.spriteFrames;
+    }
+
+    /****************  生命周期方法  ****************/
+
+    /** 组件加载时初始化 */
+    onLoad() {
+        // 获取 Sprite 组件
+        this._sprite = this.getComponent(Sprite) || undefined;
+        this._initAnimation();
+    }
+
+    /** 组件销毁时清理资源 */
+    onDestroy() {
+        if (this._animation && this._clip) {
+            try {
+                // 从 Animation 组件移除剪辑
+                this._animation.removeClip(this._clip);
+                // 销毁剪辑资源
+                this._clip.destroy();
+                // 清理引用
+                this._clip = undefined;
+                // 动态资源销毁
+                this._releaseDynamicResources();
+            } catch (e) { }
+        }
+    }
+
+    /****************  播放控制方法  ****************/
+
+    /** 播放动画（从头开始）
+     * @returns 是否成功播放
+     */
+    public play(): boolean {
+        if (!this._animation || !this._clip) {
+            console.warn('[FrameAnimation] Animation 或 AnimationClip 未正确初始化');
+            return false;
+        }
+
+        // 重置帧索引并开始播放
+        this._currentFrameIndex = 0;
+        this._animation.play(this._clipName);
+        return true;
+    }
+
+    /** 暂停动画 */
+    public pause(): void {
+        if (this._animation) {
+            this._animation.pause();
+        }
+    }
+
+    /** 继续播放（从暂停处恢复） */
+    public resume(): void {
+        if (this._animation) {
+            this._animation.resume();
+        }
+    }
+
+    /** 停止动画并回到第一帧
+     * @returns 是否成功停止
+     */
+    public stop(): boolean {
+        if (this._animation) {
+            this._animation.stop();
+        }
+        this._currentFrameIndex = 0;
+        this._updateSpriteFrame(0);
+        return true;
+    }
+
+    /****************  状态查询方法  ****************/
+
+    /** 获取当前帧索引
+     * @returns 当前帧索引（从 0 开始）
+     */
+    public getCurrentFrameIndex(): number {
+        return this._currentFrameIndex;
+    }
+
+    /** 获取当前帧的 SpriteFrame
+     * @returns 当前帧图片，索引越界时返回 null
+     */
+    public getCurrentFrame(): SpriteFrame | null {
+        if (this._currentFrameIndex < this._spriteFrames.length) {
+            return this._spriteFrames[this._currentFrameIndex];
+        }
+        return null;
+    }
+
+    /** 检查动画是否正在播放
+     * @returns 是否正在播放
+     */
+    public isPlaying(): boolean {
+        if (!this._animation || !this._clip) return false;
+        const state = this._animation.getState(this._clipName);
+        return state ? state.isPlaying : false;
+    }
+
+    /****************  帧控制方法  ****************/
+
+    /** 跳转到指定帧
+     * @param index 目标帧索引（从 0 开始）
+     */
+    public setFrameIndex(index: number): void {
+        // 校验索引范围
+        if (index < 0 || index >= this._spriteFrames.length) {
+            console.warn(`[FrameAnimation] 帧索引 ${index} 超出范围`);
+            return;
+        }
+
+        // 更新 Animation 状态时间
+        if (this._animation && this._clip) {
+            const state = this._animation.getState(this._clipName);
+            if (state) {
+                // 时间 = 帧索引 / 播放速度
+                state.time = index / Math.max(this.playSpeed, 0.0001);
+            }
+        }
+
+        // 更新当前索引并刷新显示
+        this._currentFrameIndex = index;
+        this._updateSpriteFrame(index);
+    }
+
+    /****************  设置参数  ****************/
+
+    /** 设置精灵帧列表
+     * @param frames 精灵帧数组
+     */
+    public setSpriteFrames(frames: SpriteFrame[]): void {
+        const wasPlaying = this.isPlaying();
+
+        this._releaseDynamicResources();
+        for (const frame of frames) {
+            frame.addRef();
+        }
+        this._dynamicSpriteFrames = frames;
+
+        // 重新初始化并生成 clip
+        this._initAnimation();
+
+        // 如果之前正在播放或者处于预览状态，则重新播放
+        if (wasPlaying || this._preview) {
+            this.play();
+        } else {
+            this.stop();
+        }
+    }
+
+    /****************  私有辅助方法  ****************/
+
+    /** 初始化 Animation 组件 */
+    private _initAnimation(): void {
+        // 获取或添加 Animation 组件
+        this._animation = this.getComponent(Animation) || this.addComponent(Animation)!;
+
+        // 有序列帧时创建剪辑
+        if (this._spriteFrames.length > 0) {
+            this._createAnimationClip();
+        }
+    }
+
+    /** 程序化创建 AnimationClip */
+    private _createAnimationClip(): void {
+        if (this._spriteFrames.length === 0) return;
+
+        // 移除旧的 clip
+        if (this._clip && this._animation) {
+            try {
+                this._animation.removeClip(this._clip);
+            } catch (e) { }
+        }
+
+        // 根据播放速度计算采样率
+        const sample = Math.max(Math.floor(this.playSpeed), 1);
+        // 使用引擎内置的序列帧创建接口生成动画剪辑
+        this._clip = AnimationClip.createWithSpriteFrames(this._spriteFrames, sample);
+        this._clip.name = this._clipName;
+        // 设置循环模式
+        this._clip.wrapMode = this.loop ? AnimationClip.WrapMode.Loop : AnimationClip.WrapMode.Normal;
+        // 应用 easing 曲线
+        this._applyTimelineCurve(this._clip);
+
+        // 添加 clip 到 Animation 组件
+        if (this._animation) {
+            this._animation.addClip(this._clip, this._clipName);
+        }
+    }
+
+    /** 更新 Sprite 显示的帧
+     * @param index 帧索引
+     */
+    private _updateSpriteFrame(index: number): void {
+        if (index >= 0 && index < this._spriteFrames.length) {
+            // 获取或更新 Sprite 组件引用
+            this._sprite = this._sprite || this.getComponent(Sprite)!;
+            if (this._sprite) {
+                this._sprite.spriteFrame = this._spriteFrames[index];
+            }
+        }
+    }
+
+    /** 应用 Cocos Creator 内置时间轴曲线
+     * @param clip 目标动画剪辑
+     */
+    private _applyTimelineCurve(clip: AnimationClip): void {
+        // 获取曲线类型（默认 Linear）
+        const easingMethod = this.curve || EFrameAnimationCurve.Linear;
+
+        // 遍历所有曲线数据并应用 easing
+        for (const curve of clip.curves) {
+            curve.data.easingMethod = easingMethod;
+            curve.data.easingMethods = undefined;
+        }
+
+        // 同步遗留数据
+        clip.syncLegacyData();
+    }
+
+    /** 释放动态引用资源 */
+    private _releaseDynamicResources(): void {
+        if (this._dynamicSpriteFrames) {
+            for (const frame of this._dynamicSpriteFrames) {
+                frame.decRef();
+            }
+            this._dynamicSpriteFrames = [];
+        }
+    }
+
+}

@@ -1,7 +1,7 @@
 import { Node, Component } from "cc";
 
 /** UI组件 */
-export class UiComp extends Component {
+export class BaseUi extends Component {
 
     /** 遍历节点树获取符合名字的子节点
      * @param name 节点名字
