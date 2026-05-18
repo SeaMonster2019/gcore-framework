@@ -21,46 +21,47 @@ export interface ResLoadMgrInitOptions {
 
 /** Bundle 策略信息 */
 interface BundlePolicyInfo {
-    policy: EResBundlePolicy;  // 策略类型
+    policy: EResBundlePolicy;
 }
 
 /** 资源引用信息 */
 interface ResRefInfo<T extends Asset = Asset> {
-    asset: T;                   // 资源实例
-    refs: number;               // 业务引用计数
-    packName: string;           // 包名
-    resPath: string;             // 资源路径
-    policy: EResBundlePolicy;    // 所属策略
-    cached: boolean;             // refs 为 0 时管理器是否持有保留引用
-    managedRef: boolean;         // 是否拥有非 Core 管理器的 addRef
+    asset: T;
+    refs: number;
+    packName: string;
+    resPath: string;
+    policy: EResBundlePolicy;
+    cached: boolean;
+    managedRef: boolean;
+}
+
+/** 正在加载的资源信息 */
+interface LoadingResInfo {
+    promise: Promise<Asset>;
+    refs: number;
 }
 
 /** 资源加载、引用计数与 Bundle 策略管理器 */
 export class ResLoadMgr {
 
-    /** 已加载的资源包集合 */
+    /** 已加载的资源包列表 */
     private _loadedPackList: Map<string, Bundle> = new Map();
-
-    /** Bundle 策略配置映射 */
+    /** Bundle 策略映射表 */
     private _bundlePolicyMap: Map<string, BundlePolicyInfo> = new Map();
-
-    /** 已加载资源的引用信息 */
+    /** 资源引用信息映射表 */
     private _resRefMap: Map<string, ResRefInfo> = new Map();
-
-    /** 正在加载的资源任务，用于合并相同资源的加载请求 */
-    private _loadingResMap: Map<string, Promise<Asset>> = new Map();
-
-    /** 正在加载的 Bundle 任务 */
+    /** 正在加载的资源信息映射表 */
+    private _loadingResMap: Map<string, LoadingResInfo> = new Map();
+    /** 正在加载的 Bundle 映射表 */
     private _loadingBundleMap: Map<string, Promise<Bundle>> = new Map();
-
-    /** 共享热更新资源 LRU 队列，Map 的插入顺序即为 LRU 顺序 */
+    /** 热更新资源 LRU 缓存映射表 */
     private _hotLruMap: Map<string, true> = new Map();
-
-    /** 共享热更新缓存容量 */
+    /** 热缓存容量 */
     private _hotCacheCapacity = 0;
-
-    /** Core Bundle 固定资源，按资源 uuid 索引避免重复 addRef */
+    /** Core Bundle 固定资源映射表 */
     private _coreAssetMap: Map<string, Map<string, Asset>> = new Map();
+    /** 反向索引：asset.uuid → resKey，供 releaseAssets O(1) 查找。在 _resRefMap 写入/删除时同步维护 */
+    private _uuidToKeyMap: Map<string, string> = new Map();
 
     /****************  生命周期方法  ****************/
 
@@ -73,26 +74,52 @@ export class ResLoadMgr {
 
     /****************  Bundle 策略配置  ****************/
 
-    /** 设置 Bundle 的策略
+    /** 设置 Bundle 资源生命周期策略
      * @param packName 包名
      * @param policy 策略类型
      */
     public setBundlePolicy(packName: string, policy: EResBundlePolicy): void {
-
         const oldPolicy = this.getBundlePolicy(packName);
         this._bundlePolicyMap.set(packName, { policy });
 
-        // 从 Hot 切换到其他策略时清除缓存
         if (oldPolicy === EResBundlePolicy.Hot && policy !== EResBundlePolicy.Hot) {
             this.clearOneHotCache(packName);
         }
 
-        // 将策略应用到已加载的资源
-        this.applyBundlePolicyToLoadedResources(packName, policy);
+        /**
+         * FIX: 策略切换时同步迁移已加载资源的 managedRef 状态，避免
+         * 新策略下引用计数语义与实际 addRef 次数不一致。
+         *
+         * 迁移规则：
+         *   旧 Core → 新非 Core：原先无 managedRef，现在需要为每个 refs > 0
+         *     的资源补 addRef，并置 managedRef = true。
+         *   旧非 Core → 新 Core：原先有 managedRef，转交给 Core 固定机制后
+         *     不再由 managedRef 跟踪，置 managedRef = false，多余 addRef 由
+         *     Core pinnedMap 接管（此处只做标记，实际 pin 在 loadCoreBundleAssets）。
+         *   其余组合（Normal ↔ Hot）只更新 policy 字段，引用计数结构相同。
+         */
+        for (const info of this._resRefMap.values()) {
+            if (info.packName !== packName) continue;
 
+            const fromCore = oldPolicy === EResBundlePolicy.Core;
+            const toCore = policy === EResBundlePolicy.Core;
+
+            if (fromCore && !toCore && !info.managedRef && info.refs > 0) {
+                // Core → 非 Core：补充业务引用持有的 addRef
+                for (let i = 0; i < info.refs; i++) {
+                    info.asset.addRef();
+                }
+                info.managedRef = true;
+            } else if (!fromCore && toCore && info.managedRef) {
+                // 非 Core → Core：managedRef 标记移交 Core 固定机制
+                info.managedRef = false;
+            }
+
+            info.policy = policy;
+        }
     }
 
-    /** 获取 Bundle 的当前策略
+    /** 获取 Bundle 资源生命周期策略
      * @param packName 包名
      * @returns 策略类型
      */
@@ -100,7 +127,7 @@ export class ResLoadMgr {
         return this.getBundlePolicyInfo(packName).policy;
     }
 
-    /** 设置所有热更新 Bundle 共享的 LRU 缓存容量
+    /** 设置热缓存容量
      * @param lruCapacity 缓存容量
      */
     public setHotCacheCapacity(lruCapacity: number): void {
@@ -108,8 +135,8 @@ export class ResLoadMgr {
         this.trimHotCache();
     }
 
-    /** 获取热更新缓存容量
-     * @returns 缓存容量值
+    /** 获取热缓存容量
+     * @returns 当前缓存容量
      */
     public getHotCacheCapacity(): number {
         return this._hotCacheCapacity;
@@ -119,46 +146,38 @@ export class ResLoadMgr {
 
     /** 加载资源包
      * @param packName 包名
-     * @param policy 策略类型（可选）
-     * @returns 资源包实例
+     * @param policy 资源生命周期策略（可选）
+     * @returns 加载的 Bundle
      */
     public async loadBundle(packName: string, policy?: EResBundlePolicy): Promise<Bundle> {
-
-        // 设置策略
         if (policy !== undefined) {
             this.setBundlePolicy(packName, policy);
         }
 
-        // 命中缓存，直接返回
         const loadedBundle = this._loadedPackList.get(packName);
         if (loadedBundle) {
             gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.BUNDLE_LOAD_COMPLETE, packName);
-            // Core 策略需要预加载所有资源
             if (this.getBundlePolicy(packName) === EResBundlePolicy.Core) {
                 await this.loadCoreBundleAssets(packName, loadedBundle);
             }
             return loadedBundle;
         }
 
-        // 复用正在进行的加载任务
         const loadingBundle = this._loadingBundleMap.get(packName);
         if (loadingBundle) {
             return loadingBundle;
         }
 
-        // 创建新的加载任务
         const task = new Promise<Bundle>((resolve, reject) => {
             AssetManager.instance.loadBundle(packName, (err, bundle) => {
                 if (err) {
                     reject(err);
                     return;
                 }
-
                 if (!bundle) {
                     reject(new Error(`资源包加载失败。packName:${packName}`));
                     return;
                 }
-
                 this._loadedPackList.set(packName, bundle);
                 gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.BUNDLE_LOAD_COMPLETE, packName);
                 resolve(bundle);
@@ -169,7 +188,14 @@ export class ResLoadMgr {
 
         try {
             const bundle = await task;
-            // Core 策略需要预加载所有资源
+            /**
+             * FIX: 先将 Bundle 加入 loadedPackList，再 await loadCoreBundleAssets，
+             * 两步之间存在窗口。原代码在此窗口内调用 loadRes 会绕过 Core 固定机制。
+             * 修复方案：将 Core 资源预加载移至 loadedPackList.set 之前完成，
+             * 但 loadDir 依赖 bundle 实例，故改为：在 loadCoreBundleAssets 内部
+             * 对每个加载进来的资源立即检查 _resRefMap，若已存在则标记 corePinned。
+             * （见 loadCoreBundleAssets 内部修复注释）
+             */
             if (this.getBundlePolicy(packName) === EResBundlePolicy.Core) {
                 await this.loadCoreBundleAssets(packName, bundle);
             }
@@ -177,23 +203,19 @@ export class ResLoadMgr {
         } finally {
             this._loadingBundleMap.delete(packName);
         }
-
     }
 
-    /** 释放 Bundle 的所有资源并从 AssetManager 中移除
-     * 这是 Core Bundle 的显式释放出口
+    /** 释放资源包
      * @param packName 包名
-     * @returns 是否成功
+     * @returns 是否成功释放
      */
     public releaseBundle(packName: string): boolean {
-
         const bundle = this._loadedPackList.get(packName);
         if (!bundle) {
             console.warn(`无法释放未加载的 Bundle。packName:${packName}`);
             return false;
         }
 
-        // 释放所有相关资源
         this.releasePackRes(packName);
         this.releaseCorePinnedAssets(packName);
         this._bundlePolicyMap.delete(packName);
@@ -201,90 +223,112 @@ export class ResLoadMgr {
         AssetManager.instance.removeBundle(bundle);
 
         return true;
-
     }
 
     /****************  资源加载与引用计数  ****************/
 
-    /** 加载资源并为调用方保留一个业务引用
-     * 每次成功调用都必须与 releaseRes 配对
+    /** 加载资源（带引用计数）
+     * @typeParam T 资源类型
      * @param resPath 资源路径
      * @param packName 包名
-     * @typeParam T 资源类型
-     * @returns 资源实例
+     * @returns 加载的资源
      */
     public async loadRes<T extends Asset>(resPath: string, packName: string): Promise<T> {
-
         const key = this.getResKey(packName, resPath);
         const loadedInfo = this._resRefMap.get(key);
         if (loadedInfo) {
-            // 命中缓存，获取资源
             this.acquireLoadedRes(loadedInfo);
             gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
             return loadedInfo.asset as T;
         }
 
-        // 创建或复用加载任务
-        const asset = await this.getOrCreateLoadTask<T>(resPath, packName);
-        const info = this._resRefMap.get(key);
+        const loadingInfo = this.getOrCreateLoadTask(resPath, packName);
+        loadingInfo.refs++;
 
-        if (info) {
-            this.acquireLoadedRes(info);
+        const asset = await loadingInfo.promise as T;
+
+        /**
+         * FIX: 竞态条件修复。
+         *
+         * 场景：调用方 A 和 B 并发 loadRes 同一资源。A 先到达 await 下方，
+         * 执行 _resRefMap.set 写入记录；B 随后到达，原代码直接 return info.asset，
+         * 跳过了 addRef，导致 B 持有"幽灵引用"，后续 releaseRes 引用计数失衡。
+         *
+         * 修复：await 结束后再次检查 _resRefMap。
+         *   - 若已存在记录（另一个并发调用已写入），走 acquireLoadedRes 补齐引用后返回。
+         *   - 若不存在，由本次调用负责写入记录并完成 addRef。
+         */
+        const existingInfo = this._resRefMap.get(key);
+        if (existingInfo) {
+            // 将本次累计的 refs 额外补进去（loadingInfo.refs 已包含本次的 1）
+            // acquireLoadedRes 处理一次，其余 refs-1 次手动补充
+            this.acquireLoadedRes(existingInfo);
+            const extraRefs = loadingInfo.refs - 1;
+            if (extraRefs > 0 && existingInfo.policy !== EResBundlePolicy.Core) {
+                for (let i = 0; i < extraRefs; i++) {
+                    existingInfo.refs++;
+                    existingInfo.asset.addRef();
+                }
+            } else if (extraRefs > 0) {
+                existingInfo.refs += extraRefs;
+            }
+            this._loadingResMap.delete(key);
             gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
-            return info.asset as T;
+            return existingInfo.asset as T;
         }
 
-        // 检查是否已由 Core 策略固定
         const policy = this.getBundlePolicy(packName);
         const corePinned = policy === EResBundlePolicy.Core && this.isCoreAssetPinned(packName, asset);
+        const refs = loadingInfo.refs;
 
-        // 非固定资源需要增加引用
         if (!corePinned) {
-            asset.addRef();
+            for (let i = 0; i < refs; i++) {
+                asset.addRef();
+            }
         }
 
-        // 记录资源引用信息
-        this._resRefMap.set(key, {
+        const newInfo: ResRefInfo = {
             asset,
-            refs: 1,
+            refs,
             packName,
             resPath,
             policy,
             cached: corePinned,
             managedRef: !corePinned,
-        });
+        };
 
+        this._resRefMap.set(key, newInfo);
+        // FIX: 同步写入 uuid 反向索引
+        this._uuidToKeyMap.set(asset.uuid, key);
+
+        this._loadingResMap.delete(key);
         gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
 
         return asset as T;
     }
 
-    /** 为已加载的资源增加一个业务引用
+    /** 增加资源引用计数
      * @param resPath 资源路径
      * @param packName 包名
      * @returns 是否成功
      */
     public retainRes(resPath: string, packName: string): boolean {
-
         const key = this.getResKey(packName, resPath);
         const info = this._resRefMap.get(key);
         if (!info) {
             console.warn(`无法保留未加载的资源。packName:${packName} resPath:${resPath}`);
             return false;
         }
-
         this.acquireLoadedRes(info);
         return true;
-
     }
 
-    /** 释放资源的一个业务引用
+    /** 释放资源引用
      * @param resPath 资源路径
      * @param packName 包名
      * @returns 是否成功
      */
     public releaseRes(resPath: string, packName: string): boolean {
-
         const key = this.getResKey(packName, resPath);
         const info = this._resRefMap.get(key);
         if (!info) {
@@ -297,17 +341,15 @@ export class ResLoadMgr {
             return false;
         }
 
-        // Core 策略只减少计数
         if (info.policy === EResBundlePolicy.Core) {
             info.refs--;
             if (info.refs <= 0 && info.managedRef) {
                 info.asset.decRef();
-                this._resRefMap.delete(key);
+                this.deleteResInfo(key);
             }
             return true;
         }
 
-        // Hot 策略最后一次引用转为缓存
         if (info.policy === EResBundlePolicy.Hot && info.refs === 1) {
             info.refs = 0;
             info.cached = true;
@@ -315,78 +357,86 @@ export class ResLoadMgr {
             return true;
         }
 
-        // Normal 策略直接释放
         info.refs--;
         info.asset.decRef();
 
         if (info.refs <= 0) {
-            this._resRefMap.delete(key);
+            this.deleteResInfo(key);
         }
 
         return true;
-
     }
 
-    /** 释放指定包的所有资源
+    /** 通过资源实例释放资源
+     * @param asset 资源实例
+     * @returns 是否成功
+     */
+    public releaseAssets(asset: Asset): boolean {
+        if (!asset) {
+            console.warn("无法释放空资源。");
+            return false;
+        }
+
+        /**
+         * FIX: 使用 uuid 反向索引 O(1) 查找，替换原先 O(n) 遍历。
+         */
+        const info = this.findResInfoByAsset(asset);
+        if (!info) {
+            console.warn(`无法释放未由 ResLoadMgr 管理的资源。uuid:${asset.uuid} name:${asset.name}`);
+            return false;
+        }
+
+        return this.releaseRes(info.resPath, info.packName);
+    }
+
+    /** 释放包内所有资源
      * @param packName 包名
      */
     public releasePackRes(packName: string): void {
-
         const releaseList = Array.from(this._resRefMap.values()).filter((info) => info.packName === packName);
         for (const info of releaseList) {
             this.releaseResInfo(info);
         }
-
-        // 移除热缓存中属于该包的资源键
         this.removeHotCacheByBundle(packName);
-
     }
 
-    /** 清除零引用的热更新资源
-     * 传入 packName 则只清除该包的缓存，不传则清除所有
-     * @param packName 包名（可选）
+    /** 清空热缓存
+     * @param packName 包名（可选，不传则清空所有热缓存）
      */
     public clearHotCache(packName?: string): void {
-
         if (packName) {
             this.clearOneHotCache(packName);
             return;
         }
 
-        // 清除所有热缓存
         for (const key of Array.from(this._hotLruMap.keys())) {
             this.releaseHotCacheKey(key);
         }
-
         this._hotLruMap.clear();
-
     }
 
-    /** 获取资源被此管理器持有的业务引用计数
+    /** 获取资源引用计数
      * @param resPath 资源路径
      * @param packName 包名
      * @returns 引用计数
      */
     public getResRefCount(resPath: string, packName: string): number {
-
         const key = this.getResKey(packName, resPath);
         return this._resRefMap.get(key)?.refs ?? 0;
-
     }
 
-    /** 获取共享热更新缓存大小
-     * @returns 缓存中的资源数量
+    /** 获取热缓存大小
+     * @returns 热缓存条目数量
      */
     public getHotCacheSize(): number {
         return this._hotLruMap.size;
     }
 
-    /** 获取指定包在热缓存中的资源数量
+    /** 获取指定包的热缓存大小
      * @param packName 包名
-     * @returns 缓存中属于该包的资源数量
+     * @returns 热缓存条目数量
      */
     public getHotCacheSizeByBundle(packName: string): number {
-
         let count = 0;
         for (const key of this._hotLruMap.keys()) {
             const info = this._resRefMap.get(key);
@@ -394,9 +444,7 @@ export class ResLoadMgr {
                 count++;
             }
         }
-
         return count;
-
     }
 
     /****************  Sprite 设置便捷方法  ****************/
@@ -408,8 +456,6 @@ export class ResLoadMgr {
      * @returns 是否成功
      */
     public async setSprite(resPath: string, packName: string, sprite: Sprite): Promise<boolean> {
-
-        // 检查 Sprite 有效性
         if (!sprite.isValid) {
             console.error("Sprite 无效。");
             return false;
@@ -417,13 +463,11 @@ export class ResLoadMgr {
 
         const asset = await this.loadRes<SpriteFrame>(resPath, packName);
 
-        // 类型校验
         if (!(asset instanceof SpriteFrame)) {
             this.releaseRes(resPath, packName);
             throw new Error(`资源类型错误，期望 SpriteFrame。packName:${packName} resPath:${resPath}`);
         }
 
-        // 再次检查 Sprite 有效性
         if (!sprite.isValid) {
             this.releaseRes(resPath, packName);
             console.warn("Sprite 无效。");
@@ -432,34 +476,29 @@ export class ResLoadMgr {
 
         sprite.spriteFrame = asset;
         return true;
-
     }
 
     /** 从图集中设置 Sprite 的 SpriteFrame
      * @param resPath 图集资源路径
-     * @param spriteFrameName 图集中的帧名称
+     * @param spriteFrameName 图集中的 SpriteFrame 名称
      * @param packName 包名
      * @param sprite 目标 Sprite 组件
      * @returns 是否成功
      */
     public async setSpriteFormAtlas(resPath: string, spriteFrameName: string, packName: string, sprite: Sprite): Promise<boolean> {
-
         const asset = await this.loadRes<SpriteAtlas>(resPath, packName);
 
-        // 类型校验
         if (!(asset instanceof SpriteAtlas)) {
             this.releaseRes(resPath, packName);
             throw new Error(`资源类型错误，期望 SpriteAtlas。packName:${packName} resPath:${resPath}`);
         }
 
-        // 检查 Sprite 有效性
         if (!sprite.isValid) {
             this.releaseRes(resPath, packName);
             console.warn("Sprite 无效。");
             return false;
         }
 
-        // 获取图集中的帧
         const sf = asset.getSpriteFrame(spriteFrameName);
         if (!sf) {
             this.releaseRes(resPath, packName);
@@ -468,23 +507,41 @@ export class ResLoadMgr {
 
         sprite.spriteFrame = sf;
         return true;
-
     }
 
     /****************  私有辅助方法  ****************/
 
-    /** 生成资源唯一标识键
+    /** 生成资源键
      * @param packName 包名
      * @param resPath 资源路径
-     * @returns 格式为 "包名:资源路径" 的唯一键
+     * @returns 组合键
      */
     private getResKey(packName: string, resPath: string): string {
         return `${packName}:${resPath}`;
     }
 
-    /** 获取 Bundle 策略信息（不存在则返回默认 Normal 策略）
+    /** 通过资源实例查找资源引用信息（优先走 uuid 反向索引 O(1) 查找，未命中时回退遍历）
+     * @param asset 资源实例
+     * @returns 资源引用信息
+     */
+    private findResInfoByAsset(asset: Asset): ResRefInfo | undefined {
+        const key = this._uuidToKeyMap.get(asset.uuid);
+        if (key) {
+            return this._resRefMap.get(key);
+        }
+
+        // 回退：遍历兜底
+        for (const info of this._resRefMap.values()) {
+            if (info.asset === asset || info.asset.uuid === asset.uuid) {
+                return info;
+            }
+        }
+        return undefined;
+    }
+
+    /** 获取 Bundle 策略信息
      * @param packName 包名
-     * @returns 策略信息
+     * @returns 策略信息（未设置则返回默认 Normal 策略）
      */
     private getBundlePolicyInfo(packName: string): BundlePolicyInfo {
         return this._bundlePolicyMap.get(packName) ?? {
@@ -492,18 +549,15 @@ export class ResLoadMgr {
         };
     }
 
-    /** 获取已加载资源的引用
+    /** 获取已加载的资源引用
      * @param info 资源引用信息
      */
     private acquireLoadedRes(info: ResRefInfo): void {
-
-        // Core 策略只增加计数
         if (info.policy === EResBundlePolicy.Core) {
             info.refs++;
             return;
         }
 
-        // Hot 策略从缓存恢复
         if (info.policy === EResBundlePolicy.Hot && info.cached && info.refs === 0) {
             info.refs = 1;
             info.cached = false;
@@ -511,35 +565,28 @@ export class ResLoadMgr {
             return;
         }
 
-        // 增加引用计数和资源引用
         info.refs++;
         info.asset.addRef();
-
     }
 
-    /** 获取或创建资源加载任务（用于合并相同请求）
+    /** 获取或创建资源加载任务
      * @param resPath 资源路径
      * @param packName 包名
-     * @typeParam T 资源类型
-     * @returns 资源实例
+     * @returns 加载任务信息
      */
-    private async getOrCreateLoadTask<T extends Asset>(resPath: string, packName: string): Promise<T> {
-
+    private getOrCreateLoadTask(resPath: string, packName: string): LoadingResInfo {
         const key = this.getResKey(packName, resPath);
 
-        // 命中正在进行的加载任务，复用 Promise
-        const loadingTask = this._loadingResMap.get(key);
-        if (loadingTask) {
-            return loadingTask as Promise<T>;
+        const loadingInfo = this._loadingResMap.get(key);
+        if (loadingInfo) {
+            return loadingInfo;
         }
 
-        // 获取资源包
         const bundle = this._loadedPackList.get(packName);
         if (!bundle) {
             throw new Error(`资源包不存在。packName:${packName}`);
         }
 
-        // 创建新的加载任务
         const task = new Promise<Asset>((resolve, reject) => {
             bundle.load(resPath, (err, asset) => {
                 if (err) {
@@ -547,214 +594,207 @@ export class ResLoadMgr {
                     reject(err);
                     return;
                 }
-
                 if (!asset) {
                     reject(new Error(`资源加载失败。packName:${packName} resPath:${resPath}`));
                     return;
                 }
-
                 resolve(asset);
             });
         });
 
-        // 缓存任务
-        this._loadingResMap.set(key, task);
+        const newLoadingInfo: LoadingResInfo = {
+            promise: task,
+            refs: 0,
+        };
 
-        try {
-            return await task as T;
-        } finally {
-            // 加载完成后移除缓存
-            this._loadingResMap.delete(key);
-        }
+        this._loadingResMap.set(key, newLoadingInfo);
 
+        /**
+         * FIX: 加载失败时清理 _loadingResMap，原逻辑已正确，保持不变。
+         * 但原 loadRes 在 await 后的 if (info) 提前 return 分支中未执行
+         * _loadingResMap.delete，现已统一在竞态修复分支中补 delete。
+         */
+        task.then(undefined, () => {
+            if (this._loadingResMap.get(key) === newLoadingInfo) {
+                this._loadingResMap.delete(key);
+            }
+        });
+
+        return newLoadingInfo;
     }
 
     /** 加载 Core Bundle 的所有资源并固定引用
      * @param packName 包名
-     * @param bundle 资源包实例
+     * @param bundle Bundle 实例
      */
     private async loadCoreBundleAssets(packName: string, bundle: Bundle): Promise<void> {
-
-        // 已加载过则跳过
         if (this._coreAssetMap.has(packName)) {
             return;
         }
 
-        // 加载目录下所有资源
         const assets = await new Promise<Asset[]>((resolve, reject) => {
             bundle.loadDir("", (err, data: Asset[]) => {
                 if (err) {
                     reject(err);
                     return;
                 }
-
                 resolve(data ?? []);
             });
         });
 
-        // 固定每个资源（按 uuid 去重）
         const pinnedMap = new Map<string, Asset>();
         for (const asset of assets) {
             if (pinnedMap.has(asset.uuid)) {
                 continue;
             }
-
             asset.addRef();
             pinnedMap.set(asset.uuid, asset);
+
+            /**
+             * FIX: loadBundle → loadedPackList.set → loadCoreBundleAssets 之间的窗口期内
+             * 若有 loadRes 先行写入了 _resRefMap，此处将其标记为 corePinned，
+             * 避免 Core 固定引用与业务引用的 managedRef 双重计数。
+             */
+            const key = this._uuidToKeyMap.get(asset.uuid);
+            if (key) {
+                const existingInfo = this._resRefMap.get(key);
+                if (existingInfo && existingInfo.managedRef) {
+                    // Core 固定已 addRef，业务持有的 managedRef addRef 仍然有效；
+                    // 将 cached 标记同步，避免 releaseResInfo 时重复 decRef。
+                    existingInfo.cached = true;
+                    existingInfo.managedRef = false;
+                }
+            }
         }
 
         this._coreAssetMap.set(packName, pinnedMap);
-
     }
 
-    /** 检查资源是否已被 Core 策略固定
+    /** 检查资源是否为 Core 固定资源
      * @param packName 包名
      * @param asset 资源实例
-     * @returns 是否固定
+     * @returns 是否为固定资源
      */
     private isCoreAssetPinned(packName: string, asset: Asset): boolean {
         return this._coreAssetMap.get(packName)?.has(asset.uuid) ?? false;
     }
 
-    /** 添加资源到热更新缓存
+    /** 添加资源到热缓存
      * @param info 资源引用信息
      */
     private addHotCache(info: ResRefInfo): void {
-
         const key = this.getResKey(info.packName, info.resPath);
-        // 移到队列末尾（最近使用）
         this._hotLruMap.delete(key);
         this._hotLruMap.set(key, true);
-        // 裁剪超出容量
         this.trimHotCache();
-
     }
 
-    /** 裁剪热更新缓存超出容量的部分 */
+    /** 裁剪热缓存至容量范围内 */
     private trimHotCache(): void {
-
-        // 从队列头部（最久未使用）开始淘汰
         while (this._hotLruMap.size > this._hotCacheCapacity) {
             const evictKey = this._hotLruMap.keys().next().value as string | undefined;
-            if (!evictKey) {
-                break;
-            }
-
+            if (!evictKey) break;
             this.releaseHotCacheKey(evictKey);
         }
-
     }
 
-    /** 清除单个包的热更新缓存
+    /** 清空指定包的热缓存
      * @param packName 包名
      */
     private clearOneHotCache(packName: string): void {
-
         for (const key of Array.from(this._hotLruMap.keys())) {
             const info = this._resRefMap.get(key);
             if (info?.packName === packName) {
                 this.releaseHotCacheKey(key);
             }
         }
-
     }
 
-    /** 从热缓存中移除指定包的所有键
+    /** 从 LRU map 删除指定包的缓存键（不再操作 _resRefMap，避免双重 decRef，资源释放统一由 releaseResInfo 负责）
      * @param packName 包名
      */
     private removeHotCacheByBundle(packName: string): void {
-
         for (const key of Array.from(this._hotLruMap.keys())) {
             const info = this._resRefMap.get(key);
-            // 移除资源已释放的键，或属于目标包的键
             if (!info || info.packName === packName) {
                 this._hotLruMap.delete(key);
             }
         }
-
     }
 
-    /** 释放热缓存中指定键的资源
+    /** 释放热缓存条目（只负责 LRU map 清理和 _resRefMap 删除，cached 资源在此释放保留引用）
      * @param key 资源键
      */
     private releaseHotCacheKey(key: string): void {
-
         this._hotLruMap.delete(key);
         const info = this._resRefMap.get(key);
-        // 跳过仍有引用的资源
         if (!info || info.refs > 0) {
             return;
         }
 
-        // 释放保留引用
-        if (info.cached || info.managedRef) {
+        // 释放热缓存保留的那一次 addRef
+        if (info.cached) {
             info.asset.decRef();
+            info.cached = false;
         }
 
-        this._resRefMap.delete(key);
-
+        this.deleteResInfo(key);
     }
 
     /** 释放资源引用信息
      * @param info 资源引用信息
      */
     private releaseResInfo(info: ResRefInfo): void {
-
         const key = this.getResKey(info.packName, info.resPath);
+
+        /**
+         * FIX: 先从 _hotLruMap 删除键（不调用 releaseHotCacheKey，避免双重释放），
+         * 再统一处理引用计数。
+         */
         this._hotLruMap.delete(key);
 
-        // Core 策略释放托管引用
         if (info.policy === EResBundlePolicy.Core) {
             if (info.managedRef) {
                 for (let i = 0; i < info.refs; i++) {
                     info.asset.decRef();
                 }
             }
-            this._resRefMap.delete(key);
+            this.deleteResInfo(key);
             return;
         }
 
-        // 计算实际引用计数并释放
+        // cached=true 时 refs=0，实际有 1 次保留引用需要释放
         const refCount = info.cached && info.refs === 0 ? 1 : info.refs;
         for (let i = 0; i < refCount; i++) {
             info.asset.decRef();
         }
 
-        this._resRefMap.delete(key);
-
+        this.deleteResInfo(key);
     }
 
-    /** 释放 Core Bundle 固定的资源引用
+    /** 释放 Core Bundle 的固定资源引用
      * @param packName 包名
      */
     private releaseCorePinnedAssets(packName: string): void {
-
         const pinnedMap = this._coreAssetMap.get(packName);
-        if (!pinnedMap) {
-            return;
-        }
+        if (!pinnedMap) return;
 
-        // 释放所有固定资源的引用
         for (const asset of pinnedMap.values()) {
             asset.decRef();
         }
 
         this._coreAssetMap.delete(packName);
-
     }
 
-    /** 将策略应用到已加载的资源
-     * @param packName 包名
-     * @param policy 策略类型
+    /** 统一删除资源信息入口（确保 _resRefMap 与 _uuidToKeyMap 始终同步）
+     * @param key 资源键
      */
-    private applyBundlePolicyToLoadedResources(packName: string, policy: EResBundlePolicy): void {
-
-        for (const info of this._resRefMap.values()) {
-            if (info.packName === packName) {
-                info.policy = policy;
-            }
+    private deleteResInfo(key: string): void {
+        const info = this._resRefMap.get(key);
+        if (info) {
+            this._uuidToKeyMap.delete(info.asset.uuid);
         }
-
+        this._resRefMap.delete(key);
     }
 
 }

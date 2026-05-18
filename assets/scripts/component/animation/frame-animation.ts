@@ -49,7 +49,7 @@ export class FrameAnimation extends Component {
     /** 当前播放的帧索引 */
     private _currentFrameIndex: number = 0;
 
-    /** 动态精灵帧资源-区别于静态资源 */
+    /** 动态精灵帧列表，资源生命周期由调用方管理 */
     private _dynamicSpriteFrames: SpriteFrame[]= [];
 
     /** 获取精灵帧 */
@@ -76,8 +76,7 @@ export class FrameAnimation extends Component {
                 this._clip.destroy();
                 // 清理引用
                 this._clip = undefined;
-                // 动态资源销毁
-                this._releaseDynamicResources();
+                this._dynamicSpriteFrames = [];
             } catch (e) { }
         }
     }
@@ -187,11 +186,7 @@ export class FrameAnimation extends Component {
     public setSpriteFrames(frames: SpriteFrame[]): void {
         const wasPlaying = this.isPlaying();
 
-        this._releaseDynamicResources();
-        for (const frame of frames) {
-            frame.addRef();
-        }
-        this._dynamicSpriteFrames = frames;
+        this._dynamicSpriteFrames = frames.slice();
 
         // 重新初始化并生成 clip
         this._initAnimation();
@@ -272,16 +267,6 @@ export class FrameAnimation extends Component {
 
         // 同步遗留数据
         clip.syncLegacyData();
-    }
-
-    /** 释放动态引用资源 */
-    private _releaseDynamicResources(): void {
-        if (this._dynamicSpriteFrames) {
-            for (const frame of this._dynamicSpriteFrames) {
-                frame.decRef();
-            }
-            this._dynamicSpriteFrames = [];
-        }
     }
 
 }
