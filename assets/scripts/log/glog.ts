@@ -54,7 +54,7 @@ class GLog {
 
     /** 输出运行信息 */
     public info(message: string) {
-        this.info(message);
+        console.info(message);
         if (this.infoCallback) {
             this.infoCallback(message);
         }

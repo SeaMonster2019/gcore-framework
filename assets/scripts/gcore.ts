@@ -6,6 +6,7 @@ import { ResLoadMgr } from "./core/res-load/res-load-mgr";
 import { TipsMgr } from "./core/tips/tips-mgr";
 import { ConfigMgr } from "./core/config/config-mgr";
 import { I18nMgr } from "./core/i18n/i18n-mgr";
+import { StorageMgr } from "./core/storage/storage-mgr";
 
 /** GCore初始化参数 */
 export interface IGCoreInitParams {
@@ -36,6 +37,8 @@ class GCore {
     private _configMgr: ConfigMgr = new ConfigMgr();
     /** 多语言管理器 */
     private _i18nMgr: I18nMgr = new I18nMgr();
+    /** 持久化管理器 */
+    private _storageMgr: StorageMgr = new StorageMgr();
 
     /** MVC管理器 */
     public get mvc(): MvcMgr {
@@ -65,6 +68,10 @@ class GCore {
     public get i18n(): I18nMgr {
         return this._i18nMgr;
     }
+    /** 持久化管理器 */
+    public get storage(): StorageMgr {
+        return this._storageMgr;
+    }
 
     /** 初始化 */
     public init(initParams: IGCoreInitParams): void {
@@ -88,6 +95,8 @@ class GCore {
         this._configMgr.init();
         //初始化多语言管理器
         this._i18nMgr.init();
+        //初始化持久化管理器
+        this._storageMgr.init();
     }
 }
 

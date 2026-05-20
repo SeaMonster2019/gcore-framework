@@ -30,6 +30,7 @@ export * from "./core/mvc/base-view";
 export * from "./core/mvc/mvc-interface";
 export * from "./core/mvc/mvc-mgr";
 export * from "./core/res-load/res-load-mgr";
+export * from "./core/storage/storage-mgr";
 export * from "./core/tips/tips-mgr";
 export * from "./core/window/window-mgr";
 export * from "./debug/gdebug-case";
