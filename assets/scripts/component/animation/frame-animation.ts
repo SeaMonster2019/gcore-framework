@@ -23,6 +23,10 @@ export class FrameAnimation extends Component {
     @property({ type: Enum(EFrameAnimationCurve), displayName: "时间轴曲线", tooltip: "使用 Cocos Creator 内置 easing 曲线控制关键帧间的时间插值" })
     curve: EFrameAnimationCurve = EFrameAnimationCurve.Linear;
 
+    /** 默认起始帧 */
+    @property({ displayName: "起始帧", tooltip: "播放时默认从第几帧开始，索引从 0 开始" })
+    startFrameIndex: number = 0;
+
     @property({ displayName: "编辑器预览", tooltip: "在编辑器中勾选以预览动画" })
     get preview(): boolean {
         return this._preview;
@@ -83,19 +87,27 @@ export class FrameAnimation extends Component {
 
     /****************  播放控制方法  ****************/
 
-    /** 播放动画（从头开始）
+    /** 播放动画（可从指定帧开始）
      * @returns 是否成功播放
      */
-    public play(): boolean {
+    public play(startFrameIndex?: number): boolean {
         if (!this._animation || !this._clip) {
             console.warn('[FrameAnimation] Animation 或 AnimationClip 未正确初始化');
             return false;
         }
 
-        // 重置帧索引并开始播放
-        this._currentFrameIndex = 0;
+        const frameIndex = this._resolveStartFrameIndex(startFrameIndex);
+
+        // 先播放，再将动画状态定位到指定帧
         this._animation.play(this._clipName);
+        this._setAnimationFrameIndex(frameIndex);
         return true;
+    }
+
+    /** 从随机帧开始播放动画 */
+    public playRandomFrame(): void {
+        const randomIndex = Math.floor(Math.random() * this._spriteFrames.length);
+        this.play(randomIndex);
     }
 
     /** 暂停动画 */
@@ -164,14 +176,7 @@ export class FrameAnimation extends Component {
             return;
         }
 
-        // 更新 Animation 状态时间
-        if (this._animation && this._clip) {
-            const state = this._animation.getState(this._clipName);
-            if (state) {
-                // 时间 = 帧索引 / 播放速度
-                state.time = index / Math.max(this.playSpeed, 0.0001);
-            }
-        }
+        this._setAnimationFrameIndex(index);
 
         // 更新当前索引并刷新显示
         this._currentFrameIndex = index;
@@ -236,6 +241,31 @@ export class FrameAnimation extends Component {
         // 添加 clip 到 Animation 组件
         if (this._animation) {
             this._animation.addClip(this._clip, this._clipName);
+        }
+    }
+
+    /** 解析起始帧索引 */
+    private _resolveStartFrameIndex(startFrameIndex?: number): number {
+        const resolvedIndex = startFrameIndex ?? this.startFrameIndex;
+        if (resolvedIndex < 0) {
+            return 0;
+        }
+        if (resolvedIndex >= this._spriteFrames.length) {
+            return Math.max(this._spriteFrames.length - 1, 0);
+        }
+        return Math.floor(resolvedIndex);
+    }
+
+    /** 同步动画状态到指定帧 */
+    private _setAnimationFrameIndex(index: number): void {
+        if (!this._animation || !this._clip) {
+            return;
+        }
+
+        const state = this._animation.getState(this._clipName);
+        if (state) {
+            // 时间 = 帧索引 / 播放速度
+            state.time = index / Math.max(this.playSpeed, 0.0001);
         }
     }
 

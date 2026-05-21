@@ -1,8 +1,8 @@
 /* eslint-disable vue/one-component-per-file */
 
+import { encode } from '@msgpack/msgpack';
 import { readFileSync } from 'fs-extra';
 import { join } from 'path';
-import msgpack from '@msgpack/msgpack';
 /**
  * @zh 如果希望兼容 3.3 之前的版本可以使用下方的代码
  * @en You can add the code below if you want compatibility with versions prior to 3.3
@@ -189,6 +189,25 @@ function initI18nTool(panel: any) {
         }
     };
 
+    const removeMsgpackFiles = (dir: string) => {
+        if (!fs.existsSync(dir)) {
+            return;
+        }
+
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                removeMsgpackFiles(fullPath);
+                continue;
+            }
+            if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.msgpack') {
+                fs.removeSync(fullPath);
+            }
+        }
+    };
+
     async function parseFile(filePath: string) {
         const ext = path.extname(filePath).toLowerCase();
         if (ext === '.csv') {
@@ -314,14 +333,11 @@ function initI18nTool(panel: any) {
             const lf = langFields[li];
             const langDir = path.join(outRoot, lf);
             try {
-                if (fs.existsSync(langDir)) {
-                    appendStatus(`清理旧目录 ${langDir}`);
-                    fs.removeSync(langDir);
-                }
+                appendStatus(`清理旧的 .msgpack 文件 ${langDir}`);
+                removeMsgpackFiles(langDir);
                 fs.ensureDirSync(langDir);
                 const outFile = path.join(langDir, `${lf}.msgpack`);
-                const encodeFn = (msgpack as any).encode ?? (msgpack as any).default?.encode ?? (msgpack as any);
-                const packed = encodeFn(overallLangMaps[lf]);
+                const packed = encode(overallLangMaps[lf]);
                 fs.writeFileSync(outFile, Buffer.from(packed));
                 appendStatus(`写入 ${outFile}`);
             } catch (err) {
