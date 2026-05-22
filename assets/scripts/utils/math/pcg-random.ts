@@ -4,7 +4,7 @@ import Long from "long";
 export class PcgRandom {
 
     /** LCG乘数 (64位PCG标准参数) */
-    private static readonly Multiplier: Long = Long.fromString(`6364136223846793005`, 16);
+    private static readonly Multiplier: Long = Long.fromString("6364136223846793005", 10);
     /** 默认增量 (64位PCG标准参数) */
     private static readonly DefaultIncrement: Long = Long.fromString(`DA3E39CB94B95BDB`, 16); // 注意移除尾部的n
 
@@ -59,6 +59,9 @@ export class PcgRandom {
 
     /** 修改初始化方法 */
     private _initialize(seed: number, streamId: number): void {
+        this._seed = seed;
+        this._streamId = streamId;
+
         // 根据流ID生成唯一增量 (确保是奇数)
         const streamValue = Long.fromNumber(streamId).shiftLeft(1).or(1);
         this._increment = PcgRandom.DefaultIncrement.xor(streamValue);
@@ -130,7 +133,7 @@ export class PcgRandom {
 
     /** 返回[0.0, 1.0)之间的数字 */
     public getFloat(decimalPlaces: number = 0): number {
-        let result = this._next() / 0xFFFFFFFF;
+        let result = this._next() / 0x100000000;
         if (decimalPlaces > 0) {
             const factor = Math.pow(10, decimalPlaces);
             result = Math.floor(result * factor) / factor;

@@ -42,24 +42,24 @@ export class PoissonDisk {
     /****************  对外采样入口  ****************/
 
     /** 泊松盘采样（Bridson 算法），矩形区域 */
-    public static PoissonDiskSampling(rect: RectLike, minDistance: number): Vec2[];
+    public static PoissonDiskSampling(random: () => number, rect: RectLike, minDistance: number): Vec2[];
     /** 泊松盘采样（Bridson 算法），矩形区域，最多返回 numberOfPoints 个 */
-    public static PoissonDiskSampling(rect: RectLike, numberOfPoints: number, minDistance: number): Vec2[];
+    public static PoissonDiskSampling(random: () => number, rect: RectLike, numberOfPoints: number, minDistance: number): Vec2[];
     /** 泊松盘采样（四条线围成的区域），最多返回 numberOfPoints 个 */
-    public static PoissonDiskSampling(lines: Line[], numberOfPoints: number, minDistance: number): Vec2[];
-    public static PoissonDiskSampling(target: RectLike | Line[], arg2: number, arg3?: number): Vec2[] {
+    public static PoissonDiskSampling(random: () => number, lines: Line[], numberOfPoints: number, minDistance: number): Vec2[];
+    public static PoissonDiskSampling(random: () => number, target: RectLike | Line[], arg3: number, arg4?: number): Vec2[] {
         if (Array.isArray(target)) {
-            if (typeof arg3 !== "number") {
+            if (typeof arg4 !== "number") {
                 return [];
             }
-            return this.poissonDiskSamplingLines(target, arg2, arg3);
+            return this.poissonDiskSamplingLines(random, target, arg3, arg4);
         }
 
-        if (typeof arg3 === "number") {
-            return this.takeRandomSubset(this.poissonDiskSamplingRect(target, arg3), arg2);
+        if (typeof arg4 === "number") {
+            return this.takeRandomSubset(this.poissonDiskSamplingRect(random, target, arg4), arg3);
         }
 
-        return this.poissonDiskSamplingRect(target, arg2);
+        return this.poissonDiskSamplingRect(random, target, arg3);
     }
 
     /** 矩形区域高密度泊松盘采样，内部自动估算点数上限并尽量多生成点
@@ -67,13 +67,13 @@ export class PoissonDisk {
      * @param minDistance 点之间的最小距离
      * @returns 采样得到的点集合
      */
-    public static PoissonDiskSamplingDense(rect: RectLike, minDistance: number): Vec2[] {
+    public static PoissonDiskSamplingDense(random: () => number, rect: RectLike, minDistance: number): Vec2[] {
         const numberOfPoints = this.estimateRectPointCount(rect, minDistance);
         let bestPoints: Vec2[] = [];
         const retryCount = Math.max(2, Math.min(6, Math.ceil(numberOfPoints / 64)));
 
         for (let i = 0; i < retryCount; i++) {
-            const points = this.PoissonDiskSampling(rect, numberOfPoints, minDistance);
+            const points = this.PoissonDiskSampling(random, rect, numberOfPoints, minDistance);
             if (points.length > bestPoints.length) {
                 bestPoints = points;
             }
@@ -93,8 +93,8 @@ export class PoissonDisk {
      * @param minDistance 点之间的最小距离
      * @returns 采样得到的点集合
      */
-    private static poissonDiskSamplingRect(rect: RectLike, minDistance: number): Vec2[] {
-        return this.poissonDiskSamplingBridson(rect.x, rect.y, rect.width, rect.height, minDistance, undefined);
+    private static poissonDiskSamplingRect(random: () => number, rect: RectLike, minDistance: number): Vec2[] {
+        return this.poissonDiskSamplingBridson(random, rect.x, rect.y, rect.width, rect.height, minDistance, undefined);
     }
 
     /** 估算矩形区域内可容纳的点数上限
@@ -118,14 +118,14 @@ export class PoissonDisk {
      * @param minDistance 点之间的最小距离
      * @returns 采样得到的点集合
      */
-    private static poissonDiskSamplingLines(lines: Line[], numberOfPoints: number, minDistance: number): Vec2[] {
+    private static poissonDiskSamplingLines(random: () => number, lines: Line[], numberOfPoints: number, minDistance: number): Vec2[] {
         const polygon = this.tryGetPolygonVertices(lines);
         if (polygon === null) {
             return [];
         }
 
         const bounds = this.getPolygonBounds(polygon);
-        const points = this.poissonDiskSamplingBridson(bounds.x, bounds.y, bounds.width, bounds.height, minDistance, (point) => this.isPointInPolygon(point, polygon));
+        const points = this.poissonDiskSamplingBridson(random, bounds.x, bounds.y, bounds.width, bounds.height, minDistance, (point) => this.isPointInPolygon(point, polygon));
 
         if (points.length > numberOfPoints) {
             return this.takeRandomSubset(points, numberOfPoints);
@@ -145,7 +145,7 @@ export class PoissonDisk {
      * @param inRegion 可选的区域判定函数
      * @returns 采样得到的点集合
      */
-    private static poissonDiskSamplingBridson(originX: number, originY: number, width: number, height: number, minDistance: number, inRegion?: (point: Vec2) => boolean): Vec2[] {
+    private static poissonDiskSamplingBridson(random: () => number, originX: number, originY: number, width: number, height: number, minDistance: number, inRegion?: (point: Vec2) => boolean): Vec2[] {
         const points: Vec2[] = [];
         if (width <= 0 || height <= 0 || minDistance <= 0) {
             return points;
@@ -157,7 +157,6 @@ export class PoissonDisk {
         const grid = new Array<number>(cols * rows);
         grid.fill(-1);
 
-        const random = Math.random;
         const minDistanceSq = minDistance * minDistance;
         const active: number[] = [];
 
