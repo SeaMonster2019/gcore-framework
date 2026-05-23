@@ -74,8 +74,9 @@ export class FrameAnimation extends Component {
     onDestroy() {
         if (this._animation && this._clip) {
             try {
+                this._animation.stop();
                 // 从 Animation 组件移除剪辑
-                this._animation.removeClip(this._clip);
+                this._animation.removeClip(this._clip, true);
                 // 销毁剪辑资源
                 this._clip.destroy();
                 // 清理引用
@@ -189,6 +190,12 @@ export class FrameAnimation extends Component {
      * @param frames 精灵帧数组
      */
     public setSpriteFrames(frames: SpriteFrame[]): void {
+        if (frames.length === 0) {
+            this.stop();
+            this._dynamicSpriteFrames = [];
+            return;
+        }
+
         const wasPlaying = this.isPlaying();
 
         this._dynamicSpriteFrames = frames.slice();
@@ -224,8 +231,11 @@ export class FrameAnimation extends Component {
         // 移除旧的 clip
         if (this._clip && this._animation) {
             try {
-                this._animation.removeClip(this._clip);
+                this._animation.stop();
+                this._animation.removeClip(this._clip, true);
+                this._clip.destroy();
             } catch (e) { }
+            this._clip = undefined;
         }
 
         // 根据播放速度计算采样率

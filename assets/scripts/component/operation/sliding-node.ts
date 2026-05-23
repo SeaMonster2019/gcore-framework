@@ -18,6 +18,15 @@ export class SlidingNode extends Component {
 
     /** 临时位置向量，用于计算和设置节点位置 */
     private _tempPos: Vec3 = new Vec3();
+    /** 移动回调 */
+    private _moveCallback?: (moveNode: Node, judgeNode: Node) => void;
+
+    /** 设置移动回调
+     * @param callback 移动回调
+     */
+    public setMoveCallback(callback?: (moveNode: Node, judgeNode: Node) => void): void {
+        this._moveCallback = callback;
+    }
 
     /****************  生命周期回调  ****************/
 
@@ -71,6 +80,7 @@ export class SlidingNode extends Component {
         this._tempPos.y = this._calculateClamp(targetY, moveUITrans.height, localMin.y, localMax.y, halfH, restH);
 
         this.moveNode.setPosition(this._tempPos);
+        this._moveCallback?.(this.moveNode, this.judgeNode);
     }
 
     /****************  辅助计算方法  ****************/
