@@ -20,6 +20,7 @@ export * from "./component/tips/dialog-box";
 export * from "./component/vScroll/vscroll-view-item";
 export * from "./component/vScroll/vscroll-view";
 export * from "./container/pool";
+export * from "./container/quadtree";
 export * from "./core/config/config-mgr";
 export * from "./core/fsm/base-fsm";
 export * from "./core/fsm/fsm-mgr";
