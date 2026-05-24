@@ -1,4 +1,3 @@
-import { glog } from "../../log/glog";
 import { BaseFsm } from "./base-fsm";
 
 
@@ -21,7 +20,7 @@ export class FsmMgr {
     async enter(type: string) {
         const fsmCtor = this._fsmMap.get(type);
         if (!fsmCtor) {
-            glog.log(`GFsmMgr: 状态${type}不存在`);
+            console.log(`GFsmMgr: 状态${type}不存在`);
             return;
         }
 

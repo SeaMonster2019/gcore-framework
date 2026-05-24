@@ -1,5 +1,4 @@
 import { _decorator, Component, Label } from "cc";
-import { glog } from "../../log/glog";
 const { property, ccclass, menu } = _decorator;
 
 /** 对话框参数 */
@@ -47,7 +46,7 @@ export class DialogBox extends Component {
     public setParams(params: IDialogBoxParams): void {
 
         if (!params) {
-            glog.error('DialogBox.setParams()，参数不能为空');
+            console.error('DialogBox.setParams()，参数不能为空');
             return;
         }
 

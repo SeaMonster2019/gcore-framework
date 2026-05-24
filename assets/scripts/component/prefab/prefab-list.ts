@@ -1,6 +1,5 @@
 import { _decorator, CCBoolean, Component, instantiate, Node, Prefab } from 'cc';
 import { EDITOR } from 'cc/env';
-import { glog } from '../..';
 
 const { ccclass, property, menu } = _decorator;
 
@@ -50,13 +49,13 @@ export class PrefabList extends Component {
     /** 实例化预制体（根据数量调整） */
     private _instantiatePrefabs(): void {
         if (!this.prefab) {
-            glog.warn("[PrefabList] 预制体不存在");
+            console.warn("[PrefabList] 预制体不存在");
             return;
         }
 
         const parent = this._getParentNode();
         if (!parent) {
-            glog.warn("[PrefabList] 父节点不存在");
+            console.warn("[PrefabList] 父节点不存在");
             return;
         }
 

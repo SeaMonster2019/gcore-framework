@@ -1,8 +1,6 @@
-import { JsonAsset } from "cc";
 import msgpack from "@msgpack/msgpack";
+import { JsonAsset } from "cc";
 import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
-import { gdebug } from "../../debug/gdebug";
-import { glog } from "../../log/glog";
 
 
 /** 多语言管理器 */
@@ -25,7 +23,7 @@ export class I18nMgr {
 	public getText(key: string): string {
 		const hasKey = this._textMap.has(key);
 		if (!hasKey) {
-			glog.warnCallback
+			console.warn(`I18nMgr: 语言表中不存在key: ${key}`);
 		}
 		return this._textMap.get(key) || ``;
 	}

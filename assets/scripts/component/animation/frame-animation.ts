@@ -1,6 +1,5 @@
-import { _decorator, Component, SpriteFrame, Sprite, CCFloat, Animation, AnimationClip, Enum } from 'cc';
+import { _decorator, Animation, AnimationClip, CCFloat, Component, Enum, Sprite, SpriteFrame } from 'cc';
 import { EFrameAnimationCurve } from '../../define/gcore-define';
-import { glog } from '../../log/glog';
 const { ccclass, property, menu, requireComponent, executeInEditMode } = _decorator;
 
 /** 程序化帧动画组件（使用 AnimationClip / Animation） */
@@ -94,7 +93,7 @@ export class FrameAnimation extends Component {
      */
     public play(startFrameIndex?: number): boolean {
         if (!this._animation || !this._clip) {
-            glog.warn('[FrameAnimation] Animation 或 AnimationClip 未正确初始化');
+            console.warn('[FrameAnimation] Animation 或 AnimationClip 未正确初始化');
             return false;
         }
 
@@ -174,7 +173,7 @@ export class FrameAnimation extends Component {
     public setFrameIndex(index: number): void {
         // 校验索引范围
         if (index < 0 || index >= this._spriteFrames.length) {
-            glog.warn(`[FrameAnimation] 帧索引 ${index} 超出范围`);
+            console.warn(`[FrameAnimation] 帧索引 ${index} 超出范围`);
             return;
         }
 

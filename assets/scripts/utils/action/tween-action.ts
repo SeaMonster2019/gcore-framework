@@ -1,5 +1,4 @@
 import { Node, Tween, tween, Vec3 } from "cc";
-import { glog } from "../../log/glog";
 
 /** 移动节点
  * @param node 节点
@@ -11,13 +10,13 @@ import { glog } from "../../log/glog";
 export function ActionMoveTo(node: Node, target: Vec3, duration: number, callback?: () => void): Tween<Node> | null {
     // 检查节点是否有效
     if (!node || !node.isValid) {
-        glog.warn("[ActionMoveTo] 节点无效，无法执行动画");
+        console.warn("[ActionMoveTo] 节点无效，无法执行动画");
         return null;
     }
 
     // 检查参数有效性
     if (!target || duration < 0) {
-        glog.warn("[ActionMoveTo] 参数无效，target 或 duration 不正确");
+        console.warn("[ActionMoveTo] 参数无效，target 或 duration 不正确");
         return null;
     }
 

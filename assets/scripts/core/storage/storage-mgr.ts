@@ -1,5 +1,4 @@
 import { sys } from "cc";
-import { glog } from "../../log/glog";
 
 /**
  * 持久化管理器
@@ -53,7 +52,7 @@ export class StorageMgr {
         try {
             strValue = JSON.stringify(value);
         } catch (e) {
-            glog.error(`StorageMgr set error: ${e}`);
+            console.error(`StorageMgr set error: ${e}`);
             return;
         }
         sys.localStorage.setItem(finalKey, strValue);
@@ -76,7 +75,7 @@ export class StorageMgr {
         try {
             return JSON.parse(strValue) as T;
         } catch (e) {
-            glog.error(`StorageMgr get error: ${e}. Key: ${finalKey}, Value: ${strValue}`);
+            console.error(`StorageMgr get error: ${e}. Key: ${finalKey}, Value: ${strValue}`);
             return defaultValue;
         }
     }
@@ -127,7 +126,7 @@ export class StorageMgr {
                 sys.localStorage.removeItem(key);
             }
         } else {
-            glog.warn(`StorageMgr clearByPrefix is not fully supported on platform: ${sys.platform}. Only removeItem is recommended.`);
+            console.warn(`StorageMgr clearByPrefix is not fully supported on platform: ${sys.platform}. Only removeItem is recommended.`);
         }
     }
 }
