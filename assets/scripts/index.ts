@@ -43,3 +43,5 @@ export * from "./utils/action/tween-action";
 export * from "./utils/math/create-uiid";
 export * from "./utils/math/math";
 export * from "./utils/math/pcg-random";
+export * from "./utils/math/poisson-disk";
+export * from "./utils/ui/ui-util";
