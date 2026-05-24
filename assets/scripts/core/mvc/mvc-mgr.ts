@@ -1,9 +1,9 @@
 import { instantiate, isValid, Node, screen, UITransform, view } from "cc";
+import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
+import { glog } from "../../log/glog";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { IViewParams } from "./mvc-interface";
-import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
-import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
+import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, IViewParams, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
 
 /** MVC管理器，负责MVC框架的注册、视图的创建与销毁等核心管理 */
 export class MvcMgr {
@@ -300,7 +300,7 @@ export class MvcMgr {
         const prefab = await this._params.viewPrefabFunc(mvcParams.prefabName, mvcParams.packName);
 
         if (!prefab) {
-            console.error(`预制体不存在: ${mvcParams.prefabName}, tid:${mvcParams.tid}, 请检查预制体是否正确`);
+            glog.error(`预制体不存在: ${mvcParams.prefabName}, tid:${mvcParams.tid}, 请检查预制体是否正确`);
             return null;
         }
 
@@ -322,7 +322,7 @@ export class MvcMgr {
         // 初始化View组件
         const view = this._initViewNode(newNode, mvcParams, viewParams);
         if (!view) {
-            console.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
+            glog.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
             newNode.destroy();
             return null;
         }
@@ -342,7 +342,7 @@ export class MvcMgr {
 
         // 如果没有获取到视图组件，报错并返回
         if (!view) {
-            console.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
+            glog.error(`视图组件不存在tid:${mvcParams.tid}, 请检查预制体是否正确`);
             return null;
         }
 
@@ -352,7 +352,7 @@ export class MvcMgr {
         const ctrl = this._ctrlMap.get(tid);
         const model = this._modelMap.get(tid);
         if (!ctrl || !model) {
-            console.error(`控制器或数据模型不存在tid:${mvcParams.tid}, 请检查控制器或数据模型是否正确`);
+            glog.error(`控制器或数据模型不存在tid:${mvcParams.tid}, 请检查控制器或数据模型是否正确`);
             return null;
         }
 

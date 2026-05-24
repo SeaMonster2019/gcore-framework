@@ -243,7 +243,7 @@ export class GDebugCase {
     private static async _RunAllTests(className: string): Promise<void> {
         const classData = GDebugCase._TestFuncMap.get(className);
         if (!classData || classData.testFuncMap.size === 0) {
-            console.warn(`类 ${className} 没有注册任何测试函数`);
+            glog.warn(`类 ${className} 没有注册任何测试函数`);
             return;
         }
 
@@ -255,7 +255,7 @@ export class GDebugCase {
 
         const instance: any = new ((classData.constructor as any))();
 
-        console.log(`========== 开始测试 [${className}] ==========`);
+        glog.log(`========== 开始测试 [${className}] ==========`);
         const stats: IGDebugStats = { total: allTestCases.length, passed: 0, failed: 0, errors: 0 };
 
         for (const testCase of allTestCases) {
@@ -280,7 +280,7 @@ export class GDebugCase {
             }
         }
 
-        console.log(`========== 完成 [${className}] | 总计: ${stats.total} | 通过: ${stats.passed} | 失败: ${stats.failed} | 异常: ${stats.errors} ==========`);
+        glog.log(`========== 完成 [${className}] | 总计: ${stats.total} | 通过: ${stats.passed} | 失败: ${stats.failed} | 异常: ${stats.errors} ==========`);
         // 不删除数据，允许后续多次调用单个方法
         // GDebugCase._TestFuncMap.delete(className);
     }
@@ -289,18 +289,18 @@ export class GDebugCase {
     private static async _RunMethodTests(className: string, methodName: string): Promise<void> {
         const classData = GDebugCase._TestFuncMap.get(className);
         if (!classData) {
-            console.warn(`类 ${className} 没有注册任何测试函数`);
+            glog.warn(`类 ${className} 没有注册任何测试函数`);
             return;
         }
         const testCases = classData.testFuncMap.get(methodName);
         if (!testCases || testCases.length === 0) {
-            console.warn(`方法 ${methodName} 没有注册测试用例`);
+            glog.warn(`方法 ${methodName} 没有注册测试用例`);
             return;
         }
 
         const instance: any = new ((classData.constructor as any))();
 
-        console.log(`----- 开始测试 [${className}.${methodName}] -----`);
+        glog.log(`----- 开始测试 [${className}.${methodName}] -----`);
         for (const testCase of testCases) {
             try {
                 const result = testCase.isAsync
@@ -316,7 +316,7 @@ export class GDebugCase {
                 glog.error(`✗ ${methodName} 异常: ${error}`);
             }
         }
-        console.log(`----- 完成 [${className}.${methodName}] -----`);
+        glog.log(`----- 完成 [${className}.${methodName}] -----`);
     }
 
     /** 开始测试 */
@@ -326,7 +326,7 @@ export class GDebugCase {
         const classData = GDebugCase._TestFuncMap.get(className);
 
         if (!classData || classData.testFuncMap.size === 0) {
-            console.warn(`类 ${className} 没有注册任何测试函数`);
+            glog.warn(`类 ${className} 没有注册任何测试函数`);
             return;
         }
 
@@ -336,7 +336,7 @@ export class GDebugCase {
             allTestCases.push(...testCases);
         }
 
-        console.log(`========== 开始测试 [${className}] ==========`);
+        glog.log(`========== 开始测试 [${className}] ==========`);
         const stats: IGDebugStats = { total: allTestCases.length, passed: 0, failed: 0, errors: 0 };
 
         for (const testCase of allTestCases) {
@@ -361,7 +361,7 @@ export class GDebugCase {
             }
         }
 
-        console.log(`========== 完成 [${className}] | 总计: ${stats.total} | 通过: ${stats.passed} | 失败: ${stats.failed} | 异常: ${stats.errors} ==========`);
+        glog.log(`========== 完成 [${className}] | 总计: ${stats.total} | 通过: ${stats.passed} | 失败: ${stats.failed} | 异常: ${stats.errors} ==========`);
         GDebugCase._TestFuncMap.delete(className);
     }
 

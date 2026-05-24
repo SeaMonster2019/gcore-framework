@@ -67,7 +67,7 @@ export class StorageMgr {
      * @param userId 覆盖默认用户ID
      * @returns 存储的数据
      */
-    public get<T>(key: string, defaultValue: T = null, isGlobal: boolean = false, userId?: string): T {
+    public get<T>(key: string, defaultValue: T | undefined = undefined, isGlobal: boolean = false, userId?: string): T | undefined {
         const finalKey = this._getKey(key, isGlobal, userId);
         const strValue = sys.localStorage.getItem(finalKey);
         if (strValue === null || strValue === undefined || strValue === "") {

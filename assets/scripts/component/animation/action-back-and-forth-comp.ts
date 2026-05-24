@@ -1,5 +1,6 @@
 import { _decorator, CCFloat, Component, Node, Vec3 } from 'cc';
 import { ActionBackAndForth } from '../../utils/action/tween-action';
+import { glog } from '../../log/glog';
 
 
 const { ccclass, property, menu } = _decorator;
@@ -27,7 +28,7 @@ export class ActionBackAndForthComp extends Component {
     private init() {
         const node = this.getTargetNode();
         if (!node) {
-            console.warn("[ActionBackAndForthComp] 目标节点无效");
+            glog.warn("[ActionBackAndForthComp] 目标节点无效");
             return;
         }
 

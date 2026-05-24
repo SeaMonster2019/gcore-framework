@@ -1,5 +1,6 @@
 import { instantiate, Node, Prefab } from "cc";
 import { DialogBox, IDialogBoxParams } from "../../component/tips/dialog-box";
+import { glog } from "../../log/glog";
 
 /** 对话框组件 */
 class DialogBoxComp {
@@ -68,12 +69,12 @@ class DialogBoxComp {
     private _checkValidity(params: IDialogBoxParams): boolean {
 
         if (!params) {
-            console.error("DialogBoxParams不能为空");
+            glog.error("DialogBoxParams不能为空");
             return false;
         }
 
         if (!this._getIsAvailable()) {
-            console.error("DialogBoxComp不可用");
+            glog.error("DialogBoxComp不可用");
             return false;
         }
 
@@ -85,7 +86,7 @@ class DialogBoxComp {
         if (!this._dialogBox) {
             const p = instantiate(this._dialogBoxPrefab!)?.getComponent(DialogBox);
             if (!p) {
-                console.error("对话框预制体缺少DialogBox组件");
+                glog.error("对话框预制体缺少DialogBox组件");
                 return;
             }
             this._dialogBox = p;

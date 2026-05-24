@@ -1,5 +1,7 @@
 import { _decorator, CCFloat, CCInteger, Component, instantiate, Node, Prefab } from "cc";
 import { Pool } from "../../container/pool";
+import { glog } from "../../log/glog";
+
 const { ccclass, property, menu } = _decorator;
 
 /** 预制体池 */
@@ -98,7 +100,7 @@ export class PrefabPool extends Component {
         const hadBorrowed = this._borrowedNodes.delete(node);
         if (!hadBorrowed) {
             // 外部误归还或重复归还：不更新活跃计数，仍执行回收流程兜底
-            console.warn("[PrefabPool] putNode 收到未借出节点，已按兜底流程处理");
+            glog.warn("[PrefabPool] putNode 收到未借出节点，已按兜底流程处理");
         }
 
         this._activeCount = this._borrowedNodes.size;
@@ -150,7 +152,7 @@ export class PrefabPool extends Component {
     /** 实例化预制体 */
     private _instantiatePrefab(): Node {
         if (!this.prefab) {
-            console.error("[PrefabPool] prefab 未设置，已返回空节点");
+            glog.error("[PrefabPool] prefab 未设置，已返回空节点");
             return new Node("PrefabPool-MissingPrefab");
         }
 

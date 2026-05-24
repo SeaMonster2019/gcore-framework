@@ -19,14 +19,14 @@ class GDebug {
         if (DEBUG) {
             const uit = node.getComponent(UITransform);
             if (!uit) {
-                console.error("节点没有UITransform组件");
+                glog.error("节点没有UITransform组件");
                 return;
             }
             node.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
                 const uiPos = new Vec3(event.getLocation().x, event.getLocation().y, 0);
                 const wpos = camera.screenToWorld(uiPos);
                 const arPos = uit.convertToNodeSpaceAR(wpos);
-                console.log(`点击Ui坐标 x：${uiPos.x},y ${uiPos.y}\n点击世界坐标 x:${wpos.x}, y:${wpos.y}\n点击本地坐标 x:${arPos.x}, y:${arPos.y}`);
+                glog.log(`点击Ui坐标 x：${uiPos.x},y ${uiPos.y}\n点击世界坐标 x:${wpos.x}, y:${wpos.y}\n点击本地坐标 x:${arPos.x}, y:${arPos.y}`);
                 func?.();
             }, this);
         }

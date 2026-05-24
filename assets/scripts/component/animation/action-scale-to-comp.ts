@@ -1,5 +1,6 @@
 import { _decorator, Component, Node, CCFloat, Vec3 } from 'cc';
 import { ActionScaleTo } from '../../utils/action/tween-action';
+import { glog } from '../..';
 
 const { ccclass, property, menu } = _decorator;
 
@@ -28,7 +29,7 @@ export class ActionScaleToComp extends Component {
     private init() {
         const node = this.getTargetNode();
         if (!node) {
-            console.warn("[ActionScaleToComp] 目标节点无效");
+            glog.warn("[ActionScaleToComp] 目标节点无效");
             return;
         }
 
