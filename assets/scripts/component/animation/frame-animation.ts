@@ -28,12 +28,10 @@ export class FrameAnimation extends Component {
     startFrameIndex: number = 0;
 
     @property({ displayName: "编辑器预览", tooltip: "在编辑器中勾选以预览动画" })
-    get preview(): boolean {
-        return this._preview;
-    }
+    get preview(): boolean { return this._preview; }
     set preview(val: boolean) {
-        this._preview = val;
-        if (val) {
+        this._preview = !!val;
+        if (this._preview) {
             this._initAnimation();
             this.play();
         } else {
@@ -43,47 +41,44 @@ export class FrameAnimation extends Component {
     private _preview: boolean = false;
 
     /** Animation 组件引用 */
-    private _animation: Animation | undefined;
+    private _animation?: Animation;
     /** Sprite 组件引用 */
-    private _sprite: Sprite | undefined;
+    private _sprite?: Sprite;
     /** 动画剪辑实例 */
-    private _clip: AnimationClip | undefined;
+    private _clip?: AnimationClip;
     /** 动画剪辑名称（唯一标识） */
     private _clipName: string = '__frame_animation_clip__';
     /** 当前播放的帧索引 */
     private _currentFrameIndex: number = 0;
 
     /** 动态精灵帧列表，资源生命周期由调用方管理 */
-    private _dynamicSpriteFrames: SpriteFrame[]= [];
+    private _dynamicSpriteFrames: SpriteFrame[] = [];
 
     /** 获取精灵帧 */
     private get _spriteFrames(): SpriteFrame[] {
-        return this._dynamicSpriteFrames.length > 0 ? this._dynamicSpriteFrames : this.spriteFrames;
+        return this._dynamicSpriteFrames.length > 0 ? this._dynamicSpriteFrames : this.spriteFrames || [];
     }
 
     /****************  生命周期方法  ****************/
 
     /** 组件加载时初始化 */
     onLoad() {
-        // 获取 Sprite 组件
         this._sprite = this.getComponent(Sprite) || undefined;
         this._initAnimation();
     }
 
     /** 组件销毁时清理资源 */
     onDestroy() {
-        if (this._animation && this._clip) {
+        if (this._animation) {
             try {
                 this._animation.stop();
-                // 从 Animation 组件移除剪辑
-                this._animation.removeClip(this._clip, true);
-                // 销毁剪辑资源
-                this._clip.destroy();
-                // 清理引用
-                this._clip = undefined;
-                this._dynamicSpriteFrames = [];
+                if (this._clip) {
+                    this._animation.removeClip(this._clip, true);
+                }
             } catch (e) { }
         }
+        this._clip = undefined;
+        this._dynamicSpriteFrames = [];
     }
 
     /****************  播放控制方法  ****************/
@@ -92,14 +87,21 @@ export class FrameAnimation extends Component {
      * @returns 是否成功播放
      */
     public play(startFrameIndex?: number): boolean {
-        if (!this._animation || !this._clip) {
-            console.warn('[FrameAnimation] Animation 或 AnimationClip 未正确初始化');
+        if (!this._animation) {
+            console.warn('[FrameAnimation] Animation 未正确初始化');
             return false;
         }
 
-        const frameIndex = this._resolveStartFrameIndex(startFrameIndex);
+        if (!this._clip) {
+            // 尝试创建剪辑（可能在编辑器中动态设置了帧）
+            this._createAnimationClip();
+            if (!this._clip) {
+                console.warn('[FrameAnimation] AnimationClip 无法创建');
+                return false;
+            }
+        }
 
-        // 先播放，再将动画状态定位到指定帧
+        const frameIndex = this._resolveStartFrameIndex(startFrameIndex);
         this._animation.play(this._clipName);
         this._setAnimationFrameIndex(frameIndex);
         return true;
@@ -107,7 +109,9 @@ export class FrameAnimation extends Component {
 
     /** 从随机帧开始播放动画 */
     public playRandomFrame(): void {
-        const randomIndex = Math.floor(Math.random() * this._spriteFrames.length);
+        const frames = this._spriteFrames;
+        if (frames.length === 0) return;
+        const randomIndex = Math.floor(Math.random() * frames.length);
         this.play(randomIndex);
     }
 
@@ -150,8 +154,9 @@ export class FrameAnimation extends Component {
      * @returns 当前帧图片，索引越界时返回 null
      */
     public getCurrentFrame(): SpriteFrame | null {
-        if (this._currentFrameIndex < this._spriteFrames.length) {
-            return this._spriteFrames[this._currentFrameIndex];
+        const frames = this._spriteFrames;
+        if (this._currentFrameIndex >= 0 && this._currentFrameIndex < frames.length) {
+            return frames[this._currentFrameIndex];
         }
         return null;
     }
@@ -160,9 +165,9 @@ export class FrameAnimation extends Component {
      * @returns 是否正在播放
      */
     public isPlaying(): boolean {
-        if (!this._animation || !this._clip) return false;
+        if (!this._animation) return false;
         const state = this._animation.getState(this._clipName);
-        return state ? state.isPlaying : false;
+        return !!(state && state.isPlaying);
     }
 
     /****************  帧控制方法  ****************/
@@ -172,14 +177,12 @@ export class FrameAnimation extends Component {
      */
     public setFrameIndex(index: number): void {
         // 校验索引范围
-        if (index < 0 || index >= this._spriteFrames.length) {
+        const frames = this._spriteFrames;
+        if (index < 0 || index >= frames.length) {
             console.warn(`[FrameAnimation] 帧索引 ${index} 超出范围`);
             return;
         }
-
         this._setAnimationFrameIndex(index);
-
-        // 更新当前索引并刷新显示
         this._currentFrameIndex = index;
         this._updateSpriteFrame(index);
     }
@@ -197,13 +200,8 @@ export class FrameAnimation extends Component {
         }
 
         const wasPlaying = this.isPlaying();
-
         this._dynamicSpriteFrames = frames.slice();
-
-        // 重新初始化并生成 clip
         this._initAnimation();
-
-        // 如果之前正在播放或者处于预览状态，则重新播放
         if (wasPlaying || this._preview) {
             this.play();
         } else {
@@ -216,41 +214,43 @@ export class FrameAnimation extends Component {
     /** 初始化 Animation 组件 */
     private _initAnimation(): void {
         // 获取或添加 Animation 组件
-        this._animation = this.getComponent(Animation) || this.addComponent(Animation)!;
-
-        // 有序列帧时创建剪辑
+        this._animation = this.getComponent(Animation) || this.addComponent(Animation) as Animation;
         if (this._spriteFrames.length > 0) {
             this._createAnimationClip();
+        } else {
+            // 清除旧剪辑引用
+            this._clip = undefined;
         }
     }
 
     /** 程序化创建 AnimationClip */
     private _createAnimationClip(): void {
-        if (this._spriteFrames.length === 0) return;
+        const frames = this._spriteFrames;
+        if (frames.length === 0 || !this._animation) return;
 
-        // 移除旧的 clip
-        if (this._clip && this._animation) {
-            try {
-                this._animation.stop();
-                this._animation.removeClip(this._clip, true);
-                this._clip.destroy();
-            } catch (e) { }
-            this._clip = undefined;
-        }
-
-        // 根据播放速度计算采样率
         const sample = Math.max(Math.floor(this.playSpeed), 1);
-        // 使用引擎内置的序列帧创建接口生成动画剪辑
-        this._clip = AnimationClip.createWithSpriteFrames(this._spriteFrames, sample);
-        this._clip.name = this._clipName;
-        // 设置循环模式
-        this._clip.wrapMode = this.loop ? AnimationClip.WrapMode.Loop : AnimationClip.WrapMode.Normal;
-        // 应用 easing 曲线
-        this._applyTimelineCurve(this._clip);
+        const generatedClip = AnimationClip.createWithSpriteFrames(frames, sample);
+        generatedClip.name = this._clipName;
+        generatedClip.wrapMode = this.loop ? AnimationClip.WrapMode.Loop : AnimationClip.WrapMode.Normal;
+        this._applyTimelineCurve(generatedClip);
 
-        // 添加 clip 到 Animation 组件
-        if (this._animation) {
-            this._animation.addClip(this._clip, this._clipName);
+        try {
+            if (!this._clip) {
+                // 直接使用生成的实例
+                this._clip = generatedClip;
+                this._animation.addClip(this._clip, this._clipName);
+            } else {
+                // 如果已有 clip，则替换其可变数据以避免重复注册
+                this._copyClipData(this._clip, generatedClip);
+                // 确保 Animation 组件注册了该 clip
+                if (!this._animation.getState(this._clipName)) {
+                    this._animation.addClip(this._clip, this._clipName);
+                }
+                // 销毁中间生成体以释放资源（若引擎要求）
+                try { generatedClip.destroy(); } catch (e) { }
+            }
+        } catch (e) {
+            console.warn('[FrameAnimation] _createAnimationClip 发生异常', e);
         }
     }
 
@@ -271,25 +271,19 @@ export class FrameAnimation extends Component {
         if (!this._animation || !this._clip) {
             return;
         }
-
         const state = this._animation.getState(this._clipName);
-        if (state) {
-            // 时间 = 帧索引 / 播放速度
-            state.time = index / Math.max(this.playSpeed, 0.0001);
-        }
+        if (!state) return;
+        state.time = index / Math.max(this.playSpeed, 0.0001);
     }
 
     /** 更新 Sprite 显示的帧
      * @param index 帧索引
      */
     private _updateSpriteFrame(index: number): void {
-        if (index >= 0 && index < this._spriteFrames.length) {
-            // 获取或更新 Sprite 组件引用
-            this._sprite = this._sprite || this.getComponent(Sprite)!;
-            if (this._sprite) {
-                this._sprite.spriteFrame = this._spriteFrames[index];
-            }
-        }
+        const frames = this._spriteFrames;
+        if (index < 0 || index >= frames.length) return;
+        this._sprite = this._sprite || this.getComponent(Sprite) || undefined;
+        if (this._sprite) this._sprite.spriteFrame = frames[index];
     }
 
     /** 应用 Cocos Creator 内置时间轴曲线
@@ -301,12 +295,27 @@ export class FrameAnimation extends Component {
 
         // 遍历所有曲线数据并应用 easing
         for (const curve of clip.curves) {
-            curve.data.easingMethod = easingMethod;
-            curve.data.easingMethods = undefined;
+            if (curve && curve.data) {
+                curve.data.easingMethod = easingMethod;
+                curve.data.easingMethods = undefined;
+            }
         }
 
         // 同步遗留数据
         clip.syncLegacyData();
+    }
+
+    /** 复用现有剪辑实例并替换其内容 */
+    private _copyClipData(target: AnimationClip, source: AnimationClip): void {
+        target.sample = source.sample;
+        target.speed = source.speed;
+        target.wrapMode = source.wrapMode;
+        target.duration = source.duration;
+        target.events = source.events;
+        target.keys = source.keys;
+        target.curves = source.curves;
+        target.commonTargets = source.commonTargets;
+        target.syncLegacyData();
     }
 
 }
