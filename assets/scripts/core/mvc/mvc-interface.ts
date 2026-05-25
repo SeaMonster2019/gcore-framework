@@ -10,7 +10,7 @@ export interface IViewParams {
 }
 
 /** 视图类型别名，表示通用的BaseView实例 */
-export type ViewType = BaseView<IViewParams>;
+export type ViewType = BaseView<IViewParams|undefined>;
 
 /** MVC视图ID，从IViewParamMap中提取有效的数字键 */
 export type ViewId = keyof IViewParamMap & number;

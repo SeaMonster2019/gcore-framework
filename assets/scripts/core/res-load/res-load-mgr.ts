@@ -214,7 +214,6 @@ export class ResLoadMgr {
                 this.acquireLoadedRes(finalInfo);
             }
 
-            gcoreEvent.emit(GCoreEvent.RES_LOAD_EVENT.RES_LOAD_COMPLETE, resPath, packName);
             return finalInfo.asset as T;
         } finally {
             this._loadingResMap.delete(key);

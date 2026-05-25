@@ -1,3 +1,4 @@
+import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
 import { BaseFsm } from "./base-fsm";
 
 
@@ -20,18 +21,21 @@ export class FsmMgr {
     async enter(type: string) {
         const fsmCtor = this._fsmMap.get(type);
         if (!fsmCtor) {
-            console.log(`GFsmMgr: 状态${type}不存在`);
+            console.error(`GFsmMgr: 状态${type}不存在`);
             return;
         }
 
         if (this._currentFsm) {
             await this._currentFsm.onExit();
+            gcoreEvent.emit(GCoreEvent.FSM_EVENT.EXIT, this._currentFsm.state);
         }
 
         const instance = new fsmCtor();
         await instance.onInit(type);
         await instance.onEnter();
         this._currentFsm = instance;
+
+        gcoreEvent.emit(GCoreEvent.FSM_EVENT.ENTER, type);
     }
 
 }

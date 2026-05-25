@@ -4,7 +4,7 @@ import { BaseModel } from "./base-model";
 import { IViewParams } from "./mvc-interface";
 
 /** 视图基类，MVC架构中的视图层基类，继承自UiComp */
-export class BaseView<P extends IViewParams|undefined> extends BaseUi {
+export class BaseView<P extends IViewParams|undefined = undefined> extends BaseUi {
 
     /** 类型id */
     protected declare _tid: number;

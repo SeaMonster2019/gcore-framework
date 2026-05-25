@@ -31,11 +31,6 @@ export class GCoreEvent extends EventTarget {
          * @param {string} bundleName 资源包名字
          */
         BUNDLE_LOAD_COMPLETE: `BUNDLE_LOAD_COMPLETE`,
-        /** 资源加载完成
-         * @param {string} resPath 资源路径
-         * @param {string} packName 资源包名
-         */
-        RES_LOAD_COMPLETE: `RES_LOAD_COMPLETE`,
     }
 
     /** 语言切换 */
@@ -48,6 +43,17 @@ export class GCoreEvent extends EventTarget {
         SWITCH_LANGUAGE_WITH_KEY: `SWITCH_LANGUAGE_WITH_KEY`,
     }
 
+    /** 流程切换 */
+    public static FSM_EVENT = {
+        /** 进入流程
+         * @param {string} fsmType 流程类型
+         */
+        ENTER: `FSM_ENTER`,
+        /** 退出流程
+         * @param {string} fsmType 流程类型
+         */
+        EXIT: `FSM_EXIT`,
+    }
 }
 
 export const gcoreEvent = new GCoreEvent();

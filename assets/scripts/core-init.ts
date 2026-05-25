@@ -23,9 +23,6 @@ export class GCoreInit extends Component {
     @property({ type: EventHandler, displayName: '游戏开始函数', tooltip: '游戏开始函数，用于在游戏开始时调用，不用生命周期函数是为了防止初始化顺序错误' })
     private gameHandler: EventHandler = new EventHandler();
 
-    /** 是否初始化 */
-    public _bIsInit: boolean = false;
-
     /** 加载 */
     protected onLoad(): void {
         this._init();
@@ -34,11 +31,6 @@ export class GCoreInit extends Component {
     /** 初始化 */
     private _init(): void {
 
-        if (this._bIsInit) {
-            return;
-        }
-
-        this._bIsInit = true;
         const params: IGCoreInitParams = {
             uiRoot: this.root,
             dialogBoxParent: this.dialogBoxNode,
