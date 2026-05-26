@@ -94,8 +94,8 @@ export class MvcMgr {
                         if (!existView.node.active) {
                             existView.node.active = true;
                         }
-                        // 触发刷新回调
-                        existView.onRefresh();
+                        // 触发显示回调
+                        existView.onShow();
                         return this._createViewHandle(tid, existView);
                     } else {
                         // 旧实例节点已失效，移除映射，继续创建新实例
@@ -368,9 +368,9 @@ export class MvcMgr {
             this._adaptation(view.node);
         }
 
-        // 依次触发视图打开和刷新回调
+        // 依次触发视图打开和显示回调
         view.onOpen();
-        view.onRefresh();
+        view.onShow();
 
         return view;
     }

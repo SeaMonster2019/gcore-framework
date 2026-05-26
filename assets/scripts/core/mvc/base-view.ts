@@ -39,8 +39,8 @@ export class BaseView<P extends IViewParams|undefined = undefined> extends BaseU
     /** 视图打开回调，节点首次创建并显示后触发 */
     public onOpen(): void { }
 
-    /** 视图刷新回调，复用已有实例时触发 */
-    public onRefresh(): void { }
+    /** 视图显示回调，复用已有实例时触发 */
+    public onShow(): void { }
 
     /****************  公共方法  ****************/
 
