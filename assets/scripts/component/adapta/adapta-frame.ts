@@ -13,10 +13,10 @@ export enum EAddaptType {
 ccenum(EAddaptType);
 
 /** 自适应框 */
-@ccclass('adaptaFrame')
-@menu(`GCore/adapta/adaptaFrame`)
+@ccclass('AdaptaFrame')
+@menu(`GCore/adapta/AdaptaFrame`)
 @executeInEditMode(true)
-export class adaptaFrame extends Component {
+export class AdaptaFrame extends Component {
 
     @property({
         type: EAddaptType, displayName: `适配类型`, tooltip:
