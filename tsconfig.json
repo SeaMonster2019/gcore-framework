@@ -15,12 +15,12 @@
         "outDir": "./dist",
         "rootDir": "./source",
         "types": [
-            "node",
             "@cocos/creator-types/engine",
             "@cocos/creator-types/editor",
         ]
     },
     "exclude": [
-        "./assets/*"
-    ],
+        "node_modules",
+        "../node_modules"
+    ]
 }
