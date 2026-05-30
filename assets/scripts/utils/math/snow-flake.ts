@@ -10,41 +10,42 @@ class SimpleSnowflake {
     private static readonly SEQUENCE_SCALE = 1 << SimpleSnowflake.SEQUENCE_BITS;
     private static readonly ID_SCALE = 1 << (SimpleSnowflake.NODE_BITS + SimpleSnowflake.SEQUENCE_BITS);
 
-    private epoch = 1577836800000; // 2020-01-01T00:00:00.000Z
+    // 使用秒级时间戳参与计算，确保结果长期落在 Number.MAX_SAFE_INTEGER 范围内。
+    private epochSec = 1577836800; // 2020-01-01T00:00:00.000Z
     private nodeId: number;
     private sequence = 0;
-    private lastTimestamp = 0;
+    private lastTimestampSec = 0;
 
     constructor(nodeId = 1) {
         this.nodeId = (nodeId || 0) & SimpleSnowflake.NODE_MASK;
     }
 
-    private timestamp(): number {
-        return Date.now();
+    private timestampSec(): number {
+        return Math.floor(Date.now() / 1000);
     }
 
     nextNumber(): number {
-        let ts = this.timestamp();
-        if (ts < this.lastTimestamp) {
+        let ts = this.timestampSec();
+        if (ts < this.lastTimestampSec) {
             // 时钟回拨，简单处理：等待直到时间前进
-            ts = this.lastTimestamp;
+            ts = this.lastTimestampSec;
         }
 
-        if (ts === this.lastTimestamp) {
+        if (ts === this.lastTimestampSec) {
             this.sequence = (this.sequence + 1) & SimpleSnowflake.SEQUENCE_MASK;
             if (this.sequence === 0) {
-                // 序列溢出，等待下一毫秒
-                while (ts <= this.lastTimestamp) {
-                    ts = this.timestamp();
+                // 序列溢出，等待下一秒
+                while (ts <= this.lastTimestampSec) {
+                    ts = this.timestampSec();
                 }
             }
         } else {
             this.sequence = 0;
         }
 
-        this.lastTimestamp = ts;
+        this.lastTimestampSec = ts;
 
-        const diff = ts - this.epoch;
+        const diff = ts - this.epochSec;
         return diff * SimpleSnowflake.ID_SCALE + this.nodeId * SimpleSnowflake.SEQUENCE_SCALE + this.sequence;
     }
 
