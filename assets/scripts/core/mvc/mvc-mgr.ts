@@ -17,6 +17,8 @@ export class MvcMgr {
     private _modelMap: Map<number, BaseModel> = new Map();
     /** 视图映射表（tid -> 单个View或View数组，多实例时为数组） */
     private _viewMap: Map<number, ViewType | ViewType[]> = new Map();
+    /** 正在加载中的视图 Promise 映射表 */
+    private _loadingViewMap: Map<number, Promise<IViewHandle>> = new Map();
     /** 实例id自增计数器 */
     private _iid: number = 0;
 
@@ -105,32 +107,57 @@ export class MvcMgr {
             }
         }
 
-        // 实例化界面节点
-        const view = await this._createViewNode(mvcParams, param);
-        if (!view) {
-            throw new Error(`视图组件不存在tid:${tid}, 请检查预制体是否正确`);
-        }
-
-        // 存储到视图映射表：若允许多个实例则保存数组，否则保存单实例
-        const allowMulti = !(mvcParams.attribute && (mvcParams.attribute.bIsOnly || mvcParams.attribute.bResident));
-        if (allowMulti) {
-            const entry = this._viewMap.get(tid);
-            if (!entry) {
-                this._viewMap.set(tid, [view]);
-            } else if (Array.isArray(entry)) {
-                entry.push(view);
-            } else {
-                // 将原有单实例转为数组
-                this._viewMap.set(tid, [entry as ViewType, view]);
+        // 检查是否正在加载中（仅针对单实例或常驻视图）
+        const isOnly = !!mvcParams.attribute?.bIsOnly;
+        const isResident = !!mvcParams.attribute?.bResident;
+        if (isOnly || isResident) {
+            const loading = this._loadingViewMap.get(tid);
+            if (loading) {
+                return loading;
             }
-        } else {
-            this._viewMap.set(tid, view);
         }
 
-        // 发送打开视图事件
-        gcoreEvent.emit(GCoreEvent.MVC_EVENT.OPEN_VIEW, tid, view);
+        const openPromise = (async () => {
+            try {
+                // 实例化界面节点
+                const view = await this._createViewNode(mvcParams, param);
+                if (!view) {
+                    throw new Error(`视图组件不存在tid:${tid}, 请检查预制体是否正确`);
+                }
 
-        return this._createViewHandle(tid, view);
+                // 存储到视图映射表：若允许多个实例则保存数组，否则保存单实例
+                const allowMulti = !(mvcParams.attribute && (mvcParams.attribute.bIsOnly || mvcParams.attribute.bResident));
+                if (allowMulti) {
+                    const entry = this._viewMap.get(tid);
+                    if (!entry) {
+                        this._viewMap.set(tid, [view]);
+                    } else if (Array.isArray(entry)) {
+                        entry.push(view);
+                    } else {
+                        // 将原有单实例转为数组
+                        this._viewMap.set(tid, [entry as ViewType, view]);
+                    }
+                } else {
+                    this._viewMap.set(tid, view);
+                }
+
+                // 发送打开视图事件
+                gcoreEvent.emit(GCoreEvent.MVC_EVENT.OPEN_VIEW, tid, view);
+
+                return this._createViewHandle(tid, view);
+            } finally {
+                // 无论成功失败，都从加载中映射表移除
+                if (isOnly || isResident) {
+                    this._loadingViewMap.delete(tid);
+                }
+            }
+        })();
+
+        if (isOnly || isResident) {
+            this._loadingViewMap.set(tid, openPromise);
+        }
+
+        return openPromise;
     }
 
     /** 关闭视图，常驻视图仅隐藏，非常驻视图销毁节点
