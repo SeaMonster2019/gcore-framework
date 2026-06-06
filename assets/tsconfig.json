@@ -11,11 +11,12 @@
         "strict": true,
         "experimentalDecorators": true,
         "forceConsistentCasingInFileNames": true,
-        "resolveJsonModule": true,
         "declaration": true,
         "rootDir": "./",
         "paths": {
-            "@msgpack/*": ["../../node_modules/@msgpack/*"],
+            "@msgpack/*": [
+                "../../node_modules/@msgpack/*"
+            ],
         },
         "types": [
             "../../../temp/declarations/cc.custom-macro",
