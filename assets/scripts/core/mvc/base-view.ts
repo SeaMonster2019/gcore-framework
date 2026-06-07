@@ -4,7 +4,10 @@ import { BaseModel } from "./base-model";
 import { IViewParams } from "./mvc-interface";
 
 /** 视图基类，MVC架构中的视图层基类，继承自UiComp */
-export class BaseView<P extends IViewParams|undefined = undefined> extends BaseUi {
+export class BaseView<P extends IViewParams | undefined = undefined> extends BaseUi {
+
+    /** 关闭当前视图的方法，由框架在初始化时绑定 */
+    public static CloseFunc: (tid: number, iid: number) => void;
 
     /** 类型id */
     protected declare _tid: number;
@@ -16,8 +19,6 @@ export class BaseView<P extends IViewParams|undefined = undefined> extends BaseU
     protected declare _model: BaseModel;
     /** 视图参数 */
     protected declare _params: P;
-    /** 关闭当前视图的方法，由框架在初始化时绑定 */
-    public declare close: () => void;
 
     /****************  生命周期  ****************/
 
@@ -62,7 +63,12 @@ export class BaseView<P extends IViewParams|undefined = undefined> extends BaseU
 
     /** 关闭按钮点击事件，调用框架绑定的close方法 */
     protected onBtnClose(): void {
-        this.close?.();
+        this.close();
+    }
+
+    /** 关闭 */
+    protected close() {
+        BaseView.CloseFunc?.(this._tid, this._iid);
     }
 
 }

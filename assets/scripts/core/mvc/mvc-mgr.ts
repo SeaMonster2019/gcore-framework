@@ -3,6 +3,7 @@ import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, IViewParams, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
+import { BaseView } from "./base-view";
 
 /** MVC管理器，负责MVC框架的注册、视图的创建与销毁等核心管理 */
 export class MvcMgr {
@@ -29,6 +30,11 @@ export class MvcMgr {
      */
     public init(params: IMvcMrgParams) {
         this._params = params;
+
+        BaseView.CloseFunc = (tid: number, iid: number) => {
+            this.close(tid, iid);
+        }
+
         // 移除旧监听后重新注册，防止重复绑定
         screen.off(`window-resize`, this._onWindowResize.bind(this), this);
         screen.on(`window-resize`, this._onWindowResize.bind(this), this);
@@ -165,7 +171,7 @@ export class MvcMgr {
      * @param destroy 是否销毁（常驻节点无效）
      * @param iid 实例id，指定关闭多实例中的某个
      */
-    public close(tid: number, destroy?: boolean, iid?: number): void {
+    public close(tid: number, iid?: number, destroy?: boolean): void {
         const entry = this._viewMap.get(tid);
         if (!entry) return;
 
@@ -235,7 +241,7 @@ export class MvcMgr {
         // 遍历关闭所有视图
         for (const tid of allTids) {
             if (!excludeTids || !excludeTids.includes(tid)) {
-                this.close(tid, destroy);
+                this.close(tid, undefined, destroy);
             }
         }
     }
@@ -385,11 +391,6 @@ export class MvcMgr {
         // 初始化视图，注入tid、iid、控制器、数据模型和参数
         view.onInit(tid, this._getIid(), ctrl, model, viewParams || {});
 
-        // 给视图绑定关闭方法（绑定到具体iid）
-        view.close = () => {
-            this.close(tid, undefined, view.getIid());
-        };
-
         // 如果需要适配，执行适配逻辑
         if (mvcParams.attribute?.bIsdaptation) {
             this._adaptation(view.node);
@@ -413,7 +414,7 @@ export class MvcMgr {
             tid,
             iid,
             close: (destroy?: boolean) => {
-                this.close(tid, destroy, iid);
+                this.close(tid, iid, destroy);
             },
         };
     }
