@@ -1,12 +1,11 @@
 import { Canvas, Node, Prefab } from "cc";
-import { MvcMgr } from "./core/mvc/mvc-mgr";
-import { FsmMgr as FsmMgr } from "./core/fsm/fsm-mgr";
-import { WindowMgr } from "./core/window/window-mgr";
-import { ResLoadMgr } from "./core/res-load/res-load-mgr";
-import { TipsMgr } from "./core/tips/tips-mgr";
 import { ConfigMgr } from "./core/config/config-mgr";
+import { FsmMgr } from "./core/fsm/fsm-mgr";
 import { I18nMgr } from "./core/i18n/i18n-mgr";
+import { MvcMgr } from "./core/mvc/mvc-mgr";
+import { ResLoadMgr } from "./core/res-load/res-load-mgr";
 import { StorageMgr } from "./core/storage/storage-mgr";
+import { WindowMgr } from "./core/window/window-mgr";
 
 /** GCore初始化参数 */
 export interface IGCoreInitParams {
@@ -14,10 +13,6 @@ export interface IGCoreInitParams {
     uiRoot: Node;
     /** 主画布 */
     mainCanvas: Canvas;
-    /** 对话框父节点 */
-    dialogBoxParent: Node;
-    /** 对话框预制体 */
-    dialogBoxPrefab: Prefab;
 }
 
 /** GCore核心 */
@@ -31,8 +26,6 @@ class GCore {
     private _gfsmMgr: FsmMgr = new FsmMgr();
     /** 窗口管理器 */
     private _windowMgr: WindowMgr = new WindowMgr();
-    /** 提示管理器 */
-    private _tipsMgr: TipsMgr = new TipsMgr();
     /** 配置管理器 */
     private _configMgr: ConfigMgr = new ConfigMgr();
     /** 多语言管理器 */
@@ -55,10 +48,6 @@ class GCore {
     /** 窗口管理器 */
     public get window(): WindowMgr {
         return this._windowMgr;
-    }
-    /** 提示管理器 */
-    public get tips(): TipsMgr {
-        return this._tipsMgr;
     }
     /** 配置系统 */
     public get config(): ConfigMgr {
@@ -89,8 +78,6 @@ class GCore {
         this._resMgr.init();
         //初始化窗口管理器
         this._windowMgr.init();
-        //初始化提示管理器
-        this._tipsMgr.init(initParams.dialogBoxParent, initParams.dialogBoxPrefab);
         //初始化存档管理器
         this._configMgr.init();
         //初始化多语言管理器
