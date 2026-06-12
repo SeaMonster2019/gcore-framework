@@ -19,13 +19,22 @@ import {
 import { VScrollViewItem } from './vscroll-view-item';
 const { ccclass, property, menu } = _decorator;
 
+/** 虚拟列表内部节点池，按 item 类型分别回收和复用节点 */
 class InternalNodePool {
 
+    /** 按类型索引保存的节点池 */
     private pools: Map<number, Node[]> = new Map();
+    /** Prefab 创建模式下的模板集合 */
     private prefabs: Prefab[] = [];
+    /** Node 创建模式下的模板集合 */
     private nodes: Node[] = [];
+    /** 是否使用 Node 模板创建节点 */
     private useNodeMode: boolean = false;
 
+    /** 初始化节点池
+     * @param prefabs Prefab 模板集合
+     * @param nodes Node 模板集合
+     */
     constructor(prefabs: Prefab[], nodes?: Node[]) {
         this.prefabs = prefabs;
         this.nodes = nodes || [];
@@ -38,6 +47,10 @@ class InternalNodePool {
         }
     }
 
+    /** 获取指定类型的节点
+     * @param typeIndex item 类型索引
+     * @returns 可用节点，模板缺失时返回 null
+     */
     get(typeIndex: number): Node | null {
         const pool = this.pools.get(typeIndex);
         if (!pool) {
@@ -68,6 +81,10 @@ class InternalNodePool {
         return newNode;
     }
 
+    /** 回收节点到指定类型的池中
+     * @param node 需要回收的节点
+     * @param typeIndex item 类型索引
+     */
     put(node: Node, typeIndex: number) {
         if (!node) return;
         const pool = this.pools.get(typeIndex);
@@ -81,6 +98,7 @@ class InternalNodePool {
         pool.push(node);
     }
 
+    /** 清空并销毁池内全部节点 */
     clear() {
         this.pools.forEach(pool => {
             pool.forEach(node => node.destroy());
@@ -89,6 +107,9 @@ class InternalNodePool {
         this.pools.clear();
     }
 
+    /** 获取各类型池内节点数量
+     * @returns 类型到数量的映射
+     */
     getStats() {
         const stats: any = {};
         this.pools.forEach((pool, type) => {
@@ -98,31 +119,44 @@ class InternalNodePool {
     }
 }
 
+/** item 渲染回调 */
 export type RenderItemFn = (node: Node, index: number) => void;
+/** 自定义节点提供回调，支持同步或异步返回节点 */
 export type ProvideNodeFn = (index: number) => Node | Promise<Node>;
+/** item 点击回调 */
 export type OnItemClickFn = (node: Node, index: number) => void;
+/** item 长按回调 */
 export type OnItemLongPressFn = (node: Node, index: number) => void;
+/** item 出现动画回调 */
 export type PlayItemAppearAnimationFn = (node: Node, index: number) => void;
+/** 动态尺寸 item 主方向尺寸回调 */
 export type GetItemHeightFn = (index: number) => number;
+/** 动态尺寸 item 类型索引回调 */
 export type GetItemTypeIndexFn = (index: number) => number;
-// 刷新状态回调
+/** 刷新状态变化回调 */
 export type OnRefreshStateChangeFn = (state: RefreshState, offset: number) => void;
-// 加载更多状态回调
+/** 加载更多状态变化回调 */
 export type OnLoadMoreStateChangeFn = (state: LoadMoreState, offset: number) => void;
-// 分页吸附回调
+/** 分页吸附页码变化回调 */
 export type OnPageChangeFn = (pageIndex: number) => void;
 
+/** 列表滚动方向 */
 export enum ScrollDirection {
+    /** 纵向滚动 */
     VERTICAL = 0,
+    /** 横向滚动 */
     HORIZONTAL = 1,
 }
 
+/** item 创建模式 */
 export enum ItemCreationMode {
+    /** 通过 Node 模板实例化 */
     NODE = 0,
+    /** 通过 Prefab 模板实例化 */
     PREFAB = 1,
 }
 
-// 添加刷新状态枚举
+/** 下拉刷新状态 */
 export enum RefreshState {
     IDLE = 0, // 空闲状态
     PULLING = 1, // 正在拉动（未达到触发阈值）
@@ -131,6 +165,7 @@ export enum RefreshState {
     COMPLETE = 4, // 刷新完成
 }
 
+/** 上拉加载更多状态 */
 export enum LoadMoreState {
     IDLE = 0, // 空闲状态
     PULLING = 1, // 正在上拉（未达到触发阈值）
@@ -140,18 +175,22 @@ export enum LoadMoreState {
     NO_MORE = 5, // 没有更多数据
 }
 
+/** 虚拟滚动列表组件，支持等大小、多类型动态尺寸、刷新加载、惯性和分页吸附 */
 @ccclass('VirtualScrollView')
 @menu('GCore/vScroll/VScrollView')
 export class VScrollView extends Component {
+    /** 内容容器节点，通常是视口节点下的 content */
     @property({ type: Node, displayName: '容器节点', tooltip: 'content 容器节点（在 Viewport 下）' })
     public content: Node | null = null;
 
+    /** 是否启用虚拟列表；关闭后只保留滚动容器能力 */
     @property({
         displayName: '启用虚拟列表',
         tooltip: '是否启用虚拟列表模式（关闭则仅提供滚动功能）',
     })
     public useVirtualList: boolean = true;
 
+    /** 列表主滚动方向 */
     @property({
         type: Enum(ScrollDirection),
         displayName: '滚动方向',
@@ -159,6 +198,7 @@ export class VScrollView extends Component {
     })
     public direction: ScrollDirection = ScrollDirection.VERTICAL;
 
+    /** item 模板创建来源 */
     @property({
         type: Enum(ItemCreationMode),
         displayName: '创建模式',
@@ -169,6 +209,7 @@ export class VScrollView extends Component {
     })
     public itemCreationMode: ItemCreationMode = ItemCreationMode.PREFAB;
 
+    /** 等大小 Node 模式下的 item 模板节点 */
     @property({
         type: Node,
         displayName: '子项节点',
@@ -179,6 +220,7 @@ export class VScrollView extends Component {
     })
     public itemNode: Node | null = null;
 
+    /** 等大小 Prefab 模式下的 item 模板 */
     @property({
         type: Prefab,
         displayName: '子项预制体',
@@ -189,6 +231,7 @@ export class VScrollView extends Component {
     })
     public itemPrefab: Prefab | null = null;
 
+    /** 是否启用动态尺寸 item 模式 */
     @property({
         displayName: '不等大小模式',
         tooltip: '启用不等大小模式',
@@ -198,6 +241,7 @@ export class VScrollView extends Component {
     })
     public useDynamicSize: boolean = false;
 
+    /** 等大小模式下内容不足一屏时是否自动居中 */
     @property({
         displayName: '自动居中布局',
         tooltip: '当子项数量少于行/列数时，自动居中显示（适用于等大小模式）',
@@ -207,12 +251,14 @@ export class VScrollView extends Component {
     })
     public autoCenter: boolean = false;
 
+    /** 是否启用滚动结束后的分页吸附 */
     @property({
         displayName: '启用分页吸附',
         tooltip: '滚动结束后自动吸附到最近的 item 位置',
     })
     public enablePageSnap: boolean = false;
 
+    /** 分页吸附动画持续时间 */
     @property({
         displayName: '===吸附动画时长',
         tooltip: '吸附动画的持续时间（秒）',
@@ -223,6 +269,7 @@ export class VScrollView extends Component {
     })
     public pageSnapDuration: number = 0.15;
 
+    /** 手动拖动超过当前页尺寸的该比例后翻页 */
     @property({
         displayName: '===切页距离比例',
         tooltip: '滑动距离超过页面尺寸的此比例时翻页（0.1-0.5）',
@@ -233,6 +280,7 @@ export class VScrollView extends Component {
     })
     public pageSnapDistanceRatio: number = 0.15;
 
+    /** 惯性速度低于该值时触发分页吸附 */
     @property({
         displayName: '===吸附触发速度',
         tooltip: '惯性速度低于此值时触发吸附（越大越早吸附）',
@@ -243,24 +291,7 @@ export class VScrollView extends Component {
     })
     public pageSnapTriggerVelocity: number = 600;
 
-    @property({
-        displayName: '不等高模式（已废弃,仅保持兼容）',
-        tooltip: '启用不等高模式（已废弃,仅保持兼容,请使用 useDynamicSize ）',
-    })
-    public useDynamicHeight: boolean = false;
-
-    @property({
-        displayName: '列数（已废弃,仅保持兼容）',
-        tooltip: '列数（已废弃,请使用 gridCount 替代，仅保持兼容）',
-    })
-    public columns: number = 1;
-
-    @property({
-        displayName: '列间距（已废弃,仅保持兼容）',
-        tooltip: '列间距（已废弃,请使用 gridSpacing 替代，仅保持兼容）',
-    })
-    public columnSpacing: number = 0;
-
+    /** 动态尺寸 Node 模式下的多类型模板节点 */
     @property({
         type: [Node],
         displayName: '子项节点数组',
@@ -271,6 +302,7 @@ export class VScrollView extends Component {
     })
     public itemNodes: Array<Node> = [];
 
+    /** 动态尺寸 Prefab 模式下的多类型模板 */
     @property({
         type: [Prefab],
         displayName: '子项预制体数组',
@@ -281,9 +313,12 @@ export class VScrollView extends Component {
     })
     public itemPrefabs: Prefab[] = [];
 
+    /** item 在主方向上的尺寸，高度用于纵向，宽度用于横向 */
     private itemMainSize: number = 100;
+    /** item 在副方向上的尺寸，宽度用于纵向，高度用于横向 */
     private itemCrossSize: number = 100;
 
+    /** 等大小模式下每行或每列的 item 数量 */
     @property({
         displayName: '行/列数',
         tooltip: '纵向模式为列数，横向模式为行数',
@@ -294,6 +329,7 @@ export class VScrollView extends Component {
     })
     public gridCount: number = 1;
 
+    /** 等大小模式下副方向 item 间距 */
     @property({
         displayName: '副方向间距',
         tooltip: '主方向垂直方向的间距（像素）',
@@ -304,6 +340,7 @@ export class VScrollView extends Component {
     })
     public gridSpacing: number = 0;
 
+    /** 主滚动方向 item 间距 */
     @property({
         displayName: '主方向间距',
         tooltip: '主方向的间距（像素）',
@@ -314,6 +351,7 @@ export class VScrollView extends Component {
     })
     public spacing: number = 0;
 
+    /** 列表开头额外留白 */
     @property({
         displayName: '头部间距',
         tooltip: '列表头部的额外间距（纵向为顶部，横向为左侧）',
@@ -324,6 +362,7 @@ export class VScrollView extends Component {
     })
     public headerSpacing: number = 0;
 
+    /** 列表末尾额外留白 */
     @property({
         displayName: '尾部间距',
         tooltip: '列表尾部的额外间距（纵向为底部，横向为右侧）',
@@ -334,6 +373,7 @@ export class VScrollView extends Component {
     })
     public footerSpacing: number = 0;
 
+    /** 列表数据总条数 */
     @property({
         displayName: '总条数',
         tooltip: '总条数（可在运行时 setTotalCount 动态修改）',
@@ -344,6 +384,7 @@ export class VScrollView extends Component {
     })
     public totalCount: number = 50;
 
+    /** 可视区外额外保留的缓冲 item 数 */
     @property({
         displayName: '额外缓冲',
         tooltip: '额外缓冲（可视区外多渲染几条，避免边缘复用闪烁）',
@@ -354,12 +395,14 @@ export class VScrollView extends Component {
     })
     public buffer: number = 1;
 
+    /** 是否启用下拉刷新 */
     @property({
         displayName: '启用下拉刷新',
         tooltip: '是否启用下拉刷新功能',
     })
     public enablePullRefresh: boolean = false;
 
+    /** 下拉刷新触发距离 */
     @property({
         displayName: '===下拉触发距离',
         tooltip: '下拉多少距离触发刷新（像素）',
@@ -370,6 +413,7 @@ export class VScrollView extends Component {
     })
     public pullRefreshThreshold: number = 100;
 
+    /** 下拉刷新最大阻尼距离 */
     @property({
         displayName: '===下拉最大距离',
         tooltip: '下拉的最大阻尼距离（像素）',
@@ -380,12 +424,14 @@ export class VScrollView extends Component {
     })
     public pullRefreshMaxOffset: number = 150;
 
+    /** 是否启用上拉加载更多 */
     @property({
         displayName: '启用上拉加载',
         tooltip: '是否启用上拉加载更多功能',
     })
     public enableLoadMore: boolean = false;
 
+    /** 上拉加载触发距离 */
     @property({
         displayName: '===上拉触发距离',
         tooltip: '距离底部多少距离触发加载（像素）',
@@ -396,6 +442,7 @@ export class VScrollView extends Component {
     })
     public loadMoreThreshold: number = 100;
 
+    /** 上拉加载最大阻尼距离 */
     @property({
         displayName: '===上拉最大距离',
         tooltip: '上拉的最大阻尼距离（像素）',
@@ -406,6 +453,7 @@ export class VScrollView extends Component {
     })
     public loadMoreMaxOffset: number = 150;
 
+    /** 越界拖拽时的阻尼系数 */
     @property({
         displayName: '拉动阻尼系数',
         tooltip: '拉动时的阻尼系数（0-1），越小越难拉',
@@ -416,15 +464,18 @@ export class VScrollView extends Component {
     })
     public pullDampingRate: number = 0.5;
 
+    /** 是否将滚动位置四舍五入到像素 */
     @property({ displayName: '像素对齐', tooltip: '是否启用像素对齐' })
     public pixelAlign: boolean = true;
 
+    /** 是否禁止内容越界回弹 */
     @property({
         displayName: '禁用越界滚动',
         tooltip: '是否禁用越界滚动（开启后将无法滚动到边界之外）'
     })
     public disableBounce: boolean = false;
 
+    /** 惯性滚动的指数衰减系数 */
     @property({
         displayName: '惯性阻尼系数',
         tooltip: '指数衰减系数，越大减速越快',
@@ -432,86 +483,142 @@ export class VScrollView extends Component {
     })
     public inertiaDampK: number = 1;
 
+    /** 越界回弹弹簧刚度 */
     @property({ displayName: '弹簧刚度', tooltip: '越界弹簧刚度 K（建议 120–240）' })
     public springK: number = 150.0;
 
+    /** 越界回弹阻尼 */
     @property({ displayName: '弹簧阻尼', tooltip: '越界阻尼 C（建议 22–32）' })
     public springC: number = 26.0;
 
+    /** 小于该速度时停止惯性滚动 */
     @property({ displayName: '速度阈值', tooltip: '速度阈值（像素/秒），低于即停止' })
     public velocitySnap: number = 5;
 
+    /** 释放手指前用于估算速度的采样窗口 */
     @property({ displayName: '速度窗口', tooltip: '速度估计窗口（秒）' })
     public velocityWindow: number = 0.08;
 
+    /** 惯性滚动最大速度 */
     @property({ displayName: '最大惯性速度', tooltip: '最大惯性速度（像素/秒）' })
     public maxVelocity: number = 6000;
 
+    /** 是否使用类 iOS 的分段减速曲线 */
     @property({ displayName: 'iOS减速曲线', tooltip: '是否使用 iOS 风格的减速曲线' })
     public useIOSDecelerationCurve: boolean = true;
 
+    /** item 渲染函数，外部负责把数据写入节点 */
     public renderItemFn: RenderItemFn | null = null;
+    /** 自定义节点提供函数，优先级高于编辑器模板 */
     public provideNodeFn: ProvideNodeFn | null = null;
+    /** item 点击回调 */
     public onItemClickFn: OnItemClickFn | null = null;
+    /** item 长按回调 */
     public onItemLongPressFn: OnItemLongPressFn | null = null;
+    /** item 首次出现动画回调 */
     public playItemAppearAnimationFn: PlayItemAppearAnimationFn | null = null;
+    /** 动态尺寸模式下按索引获取主方向尺寸 */
     public getItemHeightFn: GetItemHeightFn | null = null;
+    /** 动态尺寸模式下按索引获取模板类型 */
     public getItemTypeIndexFn: GetItemTypeIndexFn | null = null;
+    /** 下拉刷新状态变化回调 */
     public onRefreshStateChangeFn: OnRefreshStateChangeFn | null = null;
+    /** 上拉加载状态变化回调 */
     public onLoadMoreStateChangeFn: OnLoadMoreStateChangeFn | null = null;
+    /** 分页索引变化回调 */
     public onPageChangeFn: OnPageChangeFn | null = null;
 
+    /** 视口在主方向上的尺寸 */
     private _viewportSize = 0;
+    /** 内容在主方向上的完整尺寸 */
     private _contentSize = 0;
+    /** 主方向滚动最小边界 */
     private _boundsMin = 0;
+    /** 主方向滚动最大边界 */
     private _boundsMax = 0;
+    /** 当前主方向滚动速度 */
     private _velocity = 0;
+    /** 当前是否处于触摸拖动中 */
     private _isTouching = false;
+    /** 释放前速度采样队列 */
     private _velSamples: { t: number; delta: number }[] = [];
+    /** 当前活跃槽位节点 */
     private _slotNodes: Node[] = [];
+    /** 当前槽位数量 */
     private _slots = 0;
+    /** 第一个槽位对应的数据索引 */
     private _slotFirstIndex = 0;
+    /** 动态尺寸模式下每个数据项的主方向尺寸 */
     private _itemSizes: number[] = [];
+    /** 动态尺寸模式下每个数据项的起始位置前缀表 */
     private _prefixPositions: number[] = [];
+    /** 动态尺寸采样模式下的模板类型尺寸缓存 */
     private _prefabSizeCache: Map<number, number> = new Map();
+    /** 动态尺寸多模板复用池 */
     private _nodePool: InternalNodePool | null = null;
+    /** 动态尺寸模式下每个槽位当前使用的模板类型 */
     private _slotPrefabIndices: number[] = [];
+    /** 需要播放出现动画的数据索引集合 */
     private _needAnimateIndices: Set<number> = new Set();
+    /** 是否启用 item 内 Label 的排序层处理 */
     private _initSortLayerFlag: boolean = true;
+    /** 当前滚动 tween，存在时会暂停惯性更新 */
     private _scrollTween: any = null;
+    /** 触摸移动事件复用的临时向量 */
     private _tmpMoveVec2 = new Vec2();
 
-    // 私有状态变量
+    /** 当前下拉刷新状态 */
     private _refreshState: RefreshState = RefreshState.IDLE;
+    /** 当前上拉加载状态 */
     private _loadMoreState: LoadMoreState = LoadMoreState.IDLE;
-    private _pullOffset: number = 0; // 当前下拉偏移量
-    private _loadOffset: number = 0; // 当前上拉偏移量
+    /** 当前下拉偏移量 */
+    private _pullOffset: number = 0;
+    /** 当前上拉偏移量 */
+    private _loadOffset: number = 0;
+    /** 是否正在刷新 */
     private _isRefreshing: boolean = false;
+    /** 是否正在加载更多 */
     private _isLoadingMore: boolean = false;
-    private _hasMore: boolean = true; // 是否还有更多数据
+    /** 是否还有更多数据 */
+    private _hasMore: boolean = true;
 
-    // 分页吸附相关
+    /** 当前分页吸附页索引 */
     private _currentPageIndex: number = 0;
-    private _pageStartPos: number = 0; // 记录触摸开始时的位置
+    /** 触摸开始时的内容主方向位置 */
+    private _pageStartPos: number = 0;
 
+    /** 触摸开始时的 UI 坐标 */
     private _touchStartPos: Vec2 = new Vec2();
+    /** 本次触摸是否已判定滚动方向 */
     private _hasDeterminedScrollDirection: boolean = false;
+    /** 是否需要阻止父节点继续接收触摸事件 */
     private _shouldBlockParent: boolean = false;
-    private _scrollDirectionThreshold: number = 15; // 滑动阈值（像素）
-    private _scrollAngleThreshold: number = 30; // 角度阈值（度）
+    /** 判定滚动方向前的最小移动距离 */
+    private _scrollDirectionThreshold: number = 15;
+    /** 判定滚动方向时允许的角度阈值 */
+    private _scrollAngleThreshold: number = 30;
 
-    // 等大小模式下，从 content 子节点获取的模板节点
+    /** 等大小模式下从 content 子节点取出的模板节点 */
     private _templateNode: Node | null = null;
 
+    /**************** [访问器]  ****************/
+
+    /** 获取 content 的 UITransform 组件 */
     private get _contentTf(): UITransform {
         this.content = this._getContentNode();
         return this.content!.getComponent(UITransform)!;
     }
 
+    /** 获取视口节点的 UITransform 组件 */
     private get _viewportTf(): UITransform {
         return this.node.getComponent(UITransform)!;
     }
 
+    /**************** [基础工具]  ****************/
+
+    /** 获取内容节点，未绑定时尝试按名称查找
+     * @returns 内容容器节点
+     */
     private _getContentNode(): Node {
         if (!this.content) {
             console.warn(`[VirtualScrollView] :${this.node.name} 请在属性面板绑定 content 容器节点`);
@@ -520,18 +627,30 @@ export class VScrollView extends Component {
         return this.content!;
     }
 
+    /** 判断当前是否为纵向滚动
+     * @returns 是否为纵向
+     */
     private _isVertical(): boolean {
         return this.direction === ScrollDirection.VERTICAL;
     }
 
+    /** 获取视口主方向尺寸
+     * @returns 主方向尺寸
+     */
     private _getViewportMainSize(): number {
         return this._isVertical() ? this._viewportTf.height : this._viewportTf.width;
     }
 
+    /** 获取内容节点主方向位置
+     * @returns 主方向坐标
+     */
     private _getContentMainPos(): number {
         return this._isVertical() ? this.content!.position.y : this.content!.position.x;
     }
 
+    /** 设置内容节点主方向位置
+     * @param pos 目标主方向坐标
+     */
     private _setContentMainPos(pos: number) {
         if (!Number.isFinite(pos)) return;
         if (this.pixelAlign) pos = Math.round(pos);
@@ -545,6 +664,9 @@ export class VScrollView extends Component {
         }
     }
 
+    /**************** [生命周期]  ****************/
+
+    /** 初始化虚拟列表、滚动边界和触摸监听 */
     async start() {
         this.content = this._getContentNode();
         if (!this.content) return;
@@ -574,18 +696,6 @@ export class VScrollView extends Component {
 
         this.content.removeAllChildren();
         this._viewportSize = this._getViewportMainSize();
-        //兼容废弃属性
-        if (this.useDynamicHeight) {
-            this.useDynamicSize = true;
-        }
-
-        //兼容之前版本的参数
-        if (this.columns && this.direction === ScrollDirection.VERTICAL) {
-            this.gridCount = this.columns;
-        }
-        if (this.columnSpacing && this.direction === ScrollDirection.VERTICAL) {
-            this.gridSpacing = this.columnSpacing;
-        }
 
         if (this.useDynamicSize) await this._initDynamicSizeMode();
         else await this._initFixedSizeMode();
@@ -593,6 +703,7 @@ export class VScrollView extends Component {
         this._bindGlobalTouch();
     }
 
+    /** 释放节点池、模板节点和触摸监听 */
     onDestroy() {
 
         input.off(Input.EventType.TOUCH_END, this._onGlobalTouchEnd, this);
@@ -612,20 +723,13 @@ export class VScrollView extends Component {
             this._templateNode = null;
         }
 
-        if (this.itemNode) {
-            this.itemNode.destroy();
-            this.itemNode = null;
-        }
-
-        if (this.itemNodes) {
-            for (let i = this.itemNodes.length - 1; i >= 0; i--) {
-                this.itemNodes[i]?.destroy();
-            }
-        }
-
+        this.itemNode = null;
         this.itemNodes.length = 0;
     }
 
+    /**************** [初始化]  ****************/
+
+    /** 绑定本节点触摸事件 */
     private _bindTouch() {
         this.node.on(Node.EventType.TOUCH_START, this._onDown, this);
         this.node.on(Node.EventType.TOUCH_MOVE, this._onMove, this);
@@ -633,11 +737,15 @@ export class VScrollView extends Component {
         this.node.on(Node.EventType.TOUCH_CANCEL, this._onUp, this);
     }
 
+    /** 绑定全局触摸结束事件，避免手指移出节点后状态卡住 */
     private _bindGlobalTouch() {
         input.on(Input.EventType.TOUCH_END, this._onGlobalTouchEnd, this);
         input.on(Input.EventType.TOUCH_CANCEL, this._onGlobalTouchEnd, this);
     }
 
+    /** 处理全局触摸结束事件
+     * @param event 触摸事件
+     */
     private _onGlobalTouchEnd(event: EventTouch) {
         if (this._isTouching) {
             console.log('[VScrollView] Global touch end detected');
@@ -645,6 +753,7 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 初始化等大小虚拟列表模式 */
     private async _initFixedSizeMode() {
         if (!this.provideNodeFn) {
             this.provideNodeFn = (index: number) => {
@@ -677,6 +786,7 @@ export class VScrollView extends Component {
             return;
         }
 
+        // 先用样本节点确定主方向和副方向尺寸，后续槽位统一套用该尺寸。
         if (this._isVertical()) {
             this.itemMainSize = uit.height;
             this.itemCrossSize = uit.width;
@@ -688,8 +798,9 @@ export class VScrollView extends Component {
         const stride = this.itemMainSize + this.spacing;
         const visibleLines = Math.ceil(this._viewportSize / stride);
         this._slots = Math.max(1, (visibleLines + this.buffer + 2) * this.gridCount);
+        // 等大小模式可直接创建固定数量槽位，滚动时只移动槽位对应的数据索引。
         for (let i = 0; i < this._slots; i++) {
-            const n = instantiate(item_pre);
+            const n = i === 0 ? item_pre : instantiate(item_pre);
             n.parent = this.content!;
             const itf = n.getComponent(UITransform);
             if (itf) {
@@ -707,6 +818,7 @@ export class VScrollView extends Component {
         this._layoutSlots(this._slotFirstIndex, true);
     }
 
+    /** 初始化动态尺寸虚拟列表模式 */
     private async _initDynamicSizeMode() {
         if (this.getItemHeightFn) {
             console.log('[VirtualScrollView] 使用外部提供的 getItemHeightFn');
@@ -716,6 +828,7 @@ export class VScrollView extends Component {
             }
             this._buildPrefixSum();
 
+            // 外部已经提供尺寸时，只需要根据创建模式准备节点池。
             // Node 模式
             if (this.itemCreationMode === ItemCreationMode.NODE && this.itemNodes.length > 0) {
                 console.log('[VirtualScrollView] 初始化节点池（Node 模式）');
@@ -724,11 +837,6 @@ export class VScrollView extends Component {
             // Prefab 模式
             else if (this.itemCreationMode === ItemCreationMode.PREFAB && this.itemPrefabs.length > 0) {
                 console.log('[VirtualScrollView] 初始化节点池（Prefab 模式）');
-                this._nodePool = new InternalNodePool(this.itemPrefabs);
-            }
-            // 兼容旧版本
-            else if (this.itemPrefabs.length > 0) {
-                console.log('[VirtualScrollView] 初始化节点池（兼容模式）');
                 this._nodePool = new InternalNodePool(this.itemPrefabs);
             } else {
                 console.error('[VirtualScrollView] 需要至少一个 itemNode 或 itemPrefab');
@@ -762,6 +870,7 @@ export class VScrollView extends Component {
             this._nodePool = new InternalNodePool(this.itemPrefabs);
         }
 
+        // 无外部尺寸回调时，通过每种模板的 UITransform 采样出初始尺寸。
         this._prefabSizeCache.clear();
         for (let i = 0; i < templates.length; i++) {
             const template = templates[i];
@@ -787,10 +896,12 @@ export class VScrollView extends Component {
         this._initDynamicSlots();
     }
 
+    /** 初始化动态尺寸模式下的槽位数组 */
     private _initDynamicSlots() {
         const avgSize = this._contentSize / this.totalCount || 100;
         const visibleCount = Math.ceil(this._viewportSize / avgSize);
         let neededSlots = visibleCount + this.buffer * 2 + 4;
+        // 通过最小/最大槽位约束控制内存占用，同时避免快速滚动时空白。
         const minSlots = Math.ceil(this._viewportSize / 80) + this.buffer * 2;
         neededSlots = Math.max(neededSlots, minSlots);
         const maxSlots = Math.ceil(this._viewportSize / 50) + this.buffer * 4;
@@ -803,6 +914,9 @@ export class VScrollView extends Component {
         console.log(`[VScrollView] 初始化槽位: ${this._slots} (总数据: ${this.totalCount}, 视口尺寸: ${this._viewportSize})`);
     }
 
+    /**************** [尺寸与索引]  ****************/
+
+    /** 构建动态尺寸前缀位置表 */
     private _buildPrefixSum() {
         const n = this._itemSizes.length;
         this._prefixPositions = new Array(n);
@@ -827,10 +941,15 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 根据主方向滚动位置查找第一个可见 item 索引
+     * @param pos 主方向滚动搜索位置
+     * @returns 第一个可见 item 索引
+     */
     private _posToFirstIndex(pos: number): number {
         // _prefixPositions 已经包含了 headerSpacing，直接查找即可
         if (pos <= this.headerSpacing) return 0; // 修改：如果在 header 区域内，返回 0
 
+        // 前缀表有序，使用二分查找降低动态尺寸列表的滚动计算成本。
         let l = 0,
             r = this._prefixPositions.length - 1,
             ans = this._prefixPositions.length;
@@ -846,6 +965,10 @@ export class VScrollView extends Component {
         return Math.max(0, ans - 1);
     }
 
+    /** 计算动态尺寸模式下的可见索引范围
+     * @param scrollPos 当前主方向滚动位置
+     * @returns 含缓冲区的可见范围，end 为开区间
+     */
     private _calcVisibleRange(scrollPos: number): { start: number; end: number } {
         const n = this._prefixPositions.length;
         if (n === 0) return { start: 0, end: 0 };
@@ -863,6 +986,11 @@ export class VScrollView extends Component {
         return { start: Math.max(0, start - this.buffer), end: Math.min(n, end + this.buffer) };
     }
 
+    /**************** [滚动更新]  ****************/
+
+    /** 每帧更新惯性滚动、越界回弹和分页吸附
+     * @param dt 帧间隔时间
+     */
     update(dt: number) {
         if (!this.content || this._isTouching || this._scrollTween) return;
         let pos = this._getContentMainPos();
@@ -907,6 +1035,7 @@ export class VScrollView extends Component {
             }
         }
 
+        // 将弹簧加速度叠加到速度上，正常区间则只保留惯性衰减后的速度。
         this._velocity += a * dt;
 
         // 分页吸附模式：使用单独的速度阈值
@@ -931,6 +1060,12 @@ export class VScrollView extends Component {
         }
     }
 
+    /**************** [公共数据接口]  ****************/
+
+    /** 更新单个动态尺寸 item 的主方向尺寸
+     * @param index 数据索引
+     * @param newSize 新尺寸，不传时从 getItemHeightFn 重新读取
+     */
     public updateItemHeight(index: number, newSize?: number) {
         if (!this.useDynamicSize) {
             console.warn('[VScrollView] 只有不等大小模式支持 updateItemHeight');
@@ -955,11 +1090,15 @@ export class VScrollView extends Component {
         this._updateVisible(true);
     }
 
+    /** 从指定索引开始重建动态尺寸前缀位置表
+     * @param startIndex 起始索引
+     */
     private _rebuildPrefixSumFrom(startIndex: number) {
         if (startIndex === 0) {
             this._buildPrefixSum();
             return;
         }
+        // 尺寸只影响当前项之后的位置，因此从变化项开始增量重建。
         let acc = this._prefixPositions[startIndex - 1] + this._itemSizes[startIndex - 1] + this.spacing;
         for (let i = startIndex; i < this._itemSizes.length; i++) {
             this._prefixPositions[i] = acc;
@@ -979,6 +1118,9 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 批量更新动态尺寸 item 的主方向尺寸
+     * @param updates 尺寸更新列表
+     */
     public updateItemHeights(updates: Array<{ index: number; height: number }>) {
         if (!this.useDynamicSize) {
             console.warn('[VScrollView] 只有不等大小模式支持 updateItemHeights');
@@ -1000,6 +1142,9 @@ export class VScrollView extends Component {
         this._updateVisible(true);
     }
 
+    /** 根据数据数组或数量刷新列表长度
+     * @param data 数据数组或新的总数
+     */
     public refreshList(data: any[] | number) {
         if (!this.useVirtualList) {
             console.warn('[VirtualScrollView] 简单滚动模式不支持 refreshList');
@@ -1009,6 +1154,9 @@ export class VScrollView extends Component {
         else this.setTotalCount(data.length);
     }
 
+    /** 设置列表总条数并刷新内容尺寸与可见槽位
+     * @param count 新的总条数
+     */
     public setTotalCount(count: number) {
         this._getContentNode();
         if (!this.useVirtualList) {
@@ -1019,6 +1167,7 @@ export class VScrollView extends Component {
         const oldCount = this.totalCount;
         this.totalCount = Math.max(0, count | 0);
         if (this.totalCount > oldCount) {
+            // 新增数据记录到动画集合，渲染进可视区时播放出现动画。
             for (let i = oldCount; i < this.totalCount; i++) {
                 this._needAnimateIndices.add(i);
             }
@@ -1026,6 +1175,7 @@ export class VScrollView extends Component {
         if (this.useDynamicSize) {
             const oldLength = this._itemSizes.length;
             if (this.totalCount > oldLength) {
+                // 动态尺寸新增项优先读取外部回调，其次使用模板类型采样缓存。
                 for (let i = oldLength; i < this.totalCount; i++) {
                     let size = 100;
                     if (this.getItemHeightFn) {
@@ -1051,15 +1201,18 @@ export class VScrollView extends Component {
         this._updateVisible(true);
     }
 
+    /** 刷新 Widget 对齐，确保运行时尺寸读取前布局已更新 */
     _upWidgetAlignment() {
         this.content?.getComponent?.(Widget)?.updateAlignment?.();
         this.node?.getComponent?.(Widget)?.updateAlignment?.();
     }
 
+    /** 在动态尺寸列表扩容后按需要增加槽位 */
     private _expandSlotsIfNeeded() {
         let neededSlots = 0;
         let pos = 0;
         const endPos = this._viewportSize;
+        // 只估算覆盖一屏所需的 item 数，再叠加缓冲，避免按总数创建节点。
         for (let i = 0; i < this.totalCount; i++) {
             if (pos >= endPos) break;
             neededSlots++;
@@ -1081,6 +1234,13 @@ export class VScrollView extends Component {
         }
     }
 
+    /**************** [公共滚动接口]  ****************/
+
+    /** 滚动到指定主方向位置
+     * @param targetPos 目标主方向坐标
+     * @param animate 是否使用 tween 动画
+     * @param duration 动画时长，不传时按距离自动估算
+     */
     private _scrollToPosition(targetPos: number, animate = false, duration?: number) {
         targetPos = math.clamp(targetPos, this._boundsMin, this._boundsMax);
         if (this._scrollTween) {
@@ -1119,16 +1279,29 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 滚动到列表开头
+     * @param animate 是否使用动画
+     * @param duration 动画时长
+     */
     public scrollToTop(animate = false, duration?: number) {
         const target = this._isVertical() ? this._boundsMin : this._boundsMax;
         this._scrollToPosition(target, animate, duration);
     }
 
+    /** 滚动到列表末尾
+     * @param animate 是否使用动画
+     * @param duration 动画时长
+     */
     public scrollToBottom(animate = false, duration?: number) {
         const target = this._isVertical() ? this._boundsMax : this._boundsMin;
         this._scrollToPosition(target, animate, duration);
     }
 
+    /** 滚动到指定数据索引
+     * @param index 数据索引
+     * @param animate 是否使用动画
+     * @param duration 动画时长
+     */
     public scrollToIndex(index: number, animate = false, duration?: number) {
         index = math.clamp(index | 0, 0, Math.max(0, this.totalCount - 1));
         let targetPos = 0;
@@ -1150,11 +1323,15 @@ export class VScrollView extends Component {
         this._scrollToPosition(targetPos, animate, duration);
     }
 
+    /** 开关 item 内 Label 的排序层处理
+     * @param onoff 是否开启排序层处理
+     */
     public onOffSortLayer(onoff: boolean) {
         this._initSortLayerFlag = onoff;
         this._onOffSortLayerOperation();
     }
 
+    /** 将当前排序层开关同步到所有活跃槽位 */
     private _onOffSortLayerOperation() {
         for (const element of this._slotNodes) {
             const sitem = element?.getComponent(VScrollViewItem);
@@ -1165,6 +1342,9 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 无动画跳转到指定主方向位置
+     * @param targetPos 目标主方向坐标
+     */
     private _flashToPosition(targetPos: number) {
         targetPos = math.clamp(targetPos, this._boundsMin, this._boundsMax);
         if (this._scrollTween) {
@@ -1178,16 +1358,21 @@ export class VScrollView extends Component {
         this._updateVisible(true);
     }
 
+    /** 立即跳转到列表开头 */
     public flashToTop() {
         const target = this._isVertical() ? this._boundsMin : this._boundsMax;
         this._flashToPosition(target);
     }
 
+    /** 立即跳转到列表末尾 */
     public flashToBottom() {
         const target = this._isVertical() ? this._boundsMax : this._boundsMin;
         this._flashToPosition(target);
     }
 
+    /** 立即跳转到指定数据索引
+     * @param index 数据索引
+     */
     public flashToIndex(index: number) {
         if (!this.useVirtualList) {
             console.warn('[VirtualScrollView] 简单滚动模式不支持 flashToIndex');
@@ -1212,6 +1397,9 @@ export class VScrollView extends Component {
         this._flashToPosition(targetPos);
     }
 
+    /** 重新渲染当前可视范围内的单个 item
+     * @param index 数据索引
+     */
     public refreshIndex(index: number) {
         if (!this.useVirtualList) {
             console.warn('[VirtualScrollView] 简单滚动模式不支持 refreshIndex');
@@ -1225,6 +1413,11 @@ export class VScrollView extends Component {
         if (node && this.renderItemFn) this.renderItemFn(node, index);
     }
 
+    /**************** [触摸处理]  ****************/
+
+    /** 按需阻止父节点接收触摸事件
+     * @param e 触摸事件
+     */
     private _stopTouchEvent(e?: EventTouch) {
         if (!e) return;
 
@@ -1234,6 +1427,9 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 处理触摸按下，重置滚动状态并停止当前动画
+     * @param e 触摸事件
+     */
     private _onDown(e: EventTouch) {
         // 记录触摸起始位置
         const uiPos = e.getUILocation(this._touchStartPos);
@@ -1256,6 +1452,9 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 处理触摸移动，驱动拖拽、方向拦截、刷新和加载更多状态
+     * @param e 触摸事件
+     */
     private _onMove(e: EventTouch) {
         if (!this._isTouching) return;
 
@@ -1299,6 +1498,7 @@ export class VScrollView extends Component {
                     const atStartBound = this._isVertical() ? pos <= minBound : pos >= maxBound;
                     const atEndBound = this._isVertical() ? pos >= maxBound : pos <= minBound;
 
+                    // 在中间区域或从边界往列表内部滑动时，当前列表应接管触摸。
                     if ((!atStartBound && !atEndBound) || (atStartBound && scrollingToEnd) || (atEndBound && scrollingToStart)) {
                         this._shouldBlockParent = true;
                     }
@@ -1328,6 +1528,7 @@ export class VScrollView extends Component {
 
             if (atTopBound && pullingDown) {
                 isPullingRefresh = true;
+                // 越界越远阻尼越强，避免刷新区域被无限拉开。
                 const overOffset = this._isVertical() ? minBound - pos : pos - maxBound;
                 const resistance = 1 - Math.min(overOffset / this.pullRefreshMaxOffset, 1) * (1 - this.pullDampingRate);
                 finalDelta = delta * resistance;
@@ -1351,6 +1552,7 @@ export class VScrollView extends Component {
 
             if (atBottomBound && pullingUp) {
                 isPullingLoadMore = true;
+                // 加载更多区域使用与下拉刷新一致的阻尼模型。
                 const overOffset = this._isVertical() ? pos - maxBound : minBound - pos;
                 const resistance = 1 - Math.min(overOffset / this.loadMoreMaxOffset, 1) * (1 - this.pullDampingRate);
                 finalDelta = delta * resistance;
@@ -1390,6 +1592,9 @@ export class VScrollView extends Component {
         if (this.useVirtualList) this._updateVisible(false);
     }
 
+    /** 处理触摸抬起，触发刷新/加载或计算惯性速度
+     * @param e 触摸事件
+     */
     private _onUp(e?: EventTouch) {
         // 重置方向判断标志
         this._hasDeterminedScrollDirection = false;
@@ -1425,6 +1630,7 @@ export class VScrollView extends Component {
 
         // 计算速度
         if (this._velSamples.length >= 2) {
+            // 取最后几帧采样平均速度，减少单帧抖动对惯性滚动的影响。
             let sum = 0;
             let dtSum = 0;
             const sampleCount = Math.min(this._velSamples.length, 5);
@@ -1453,40 +1659,45 @@ export class VScrollView extends Component {
         }
     }
 
-    // 更新刷新状态
+    /**************** [刷新加载]  ****************/
+
+    /** 更新下拉刷新状态并通知外部
+     * @param state 新状态
+     * @param offset 当前下拉偏移
+     */
     private _updateRefreshState(state: RefreshState, offset: number) {
-        if (this._refreshState === state) return;
         this._refreshState = state;
         if (this.onRefreshStateChangeFn) {
             this.onRefreshStateChangeFn(state, offset);
         }
     }
 
-    // 更新加载状态
+    /** 更新上拉加载状态并通知外部
+     * @param state 新状态
+     * @param offset 当前上拉偏移
+     */
     private _updateLoadMoreState(state: LoadMoreState, offset: number) {
-        if (this._loadMoreState === state) return;
         this._loadMoreState = state;
         if (this.onLoadMoreStateChangeFn) {
             this.onLoadMoreStateChangeFn(state, offset);
         }
     }
 
-    // 触发刷新
+    /** 触发下拉刷新状态 */
     private _triggerRefresh() {
         this._isRefreshing = true;
         this._velocity = 0;
         this._updateRefreshState(RefreshState.REFRESHING, this.pullRefreshThreshold);
     }
 
-    // 触发加载更多
+    /** 触发上拉加载更多状态 */
     private _triggerLoadMore() {
         this._isLoadingMore = true;
         this._velocity = 0;
         this._updateLoadMoreState(LoadMoreState.LOADING, this.loadMoreThreshold);
     }
 
-    /**
-     * 完成刷新（外部调用）
+    /** 完成刷新（外部调用）
      * @param success 是否刷新成功
      */
     public finishRefresh(success: boolean = true) {
@@ -1503,8 +1714,7 @@ export class VScrollView extends Component {
         }, 0.3);
     }
 
-    /**
-     * 完成加载更多（外部调用）
+    /** 完成加载更多（外部调用）
      * @param hasMore 是否还有更多数据
      */
     public finishLoadMore(hasMore: boolean = true) {
@@ -1526,9 +1736,7 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 重置加载更多状态（当数据清空或重新加载时调用）
-     */
+    /** 重置加载更多状态（当数据清空或重新加载时调用） */
     public resetLoadMoreState() {
         this._hasMore = true;
         this._isLoadingMore = false;
@@ -1536,6 +1744,11 @@ export class VScrollView extends Component {
         this._updateLoadMoreState(LoadMoreState.IDLE, 0);
     }
 
+    /**************** [槽位布局]  ****************/
+
+    /** 根据当前滚动位置更新可见槽位
+     * @param force 是否强制重排全部槽位
+     */
     private _updateVisible(force: boolean) {
         if (!this.useVirtualList) return;
         let scrollPos = this._getContentMainPos();
@@ -1560,6 +1773,7 @@ export class VScrollView extends Component {
         }
         if (this.totalCount < this._slots) newFirst = 0;
         if (force) {
+            // 强制刷新时不做循环复用，直接按新首索引重排全部槽位。
             this._slotFirstIndex = newFirst;
             this._layoutSlots(this._slotFirstIndex, true);
             return;
@@ -1567,12 +1781,14 @@ export class VScrollView extends Component {
         const diff = newFirst - this._slotFirstIndex;
         if (diff === 0) return;
         if (Math.abs(diff) >= this._slots) {
+            // 跳跃距离超过槽位数量时，循环复用收益不大，直接整段重排。
             this._slotFirstIndex = newFirst;
             this._layoutSlots(this._slotFirstIndex, true);
             return;
         }
         const absDiff = Math.abs(diff);
         if (diff > 0) {
+            // 向列表末尾滚动：头部槽位移到尾部并绑定新的数据索引。
             const moved = this._slotNodes.splice(0, absDiff);
             this._slotNodes.push(...moved);
             if (this.useDynamicSize && this._slotPrefabIndices.length > 0) {
@@ -1591,6 +1807,7 @@ export class VScrollView extends Component {
                 }
             }
         } else {
+            // 向列表开头滚动：尾部槽位移到头部并绑定新的数据索引。
             const moved = this._slotNodes.splice(this._slotNodes.length + diff, absDiff);
             this._slotNodes.unshift(...moved);
             if (this.useDynamicSize && this._slotPrefabIndices.length > 0) {
@@ -1610,6 +1827,11 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 布局单个槽位节点并触发渲染回调
+     * @param node 等大小模式下已有槽位节点，动态尺寸模式可为空
+     * @param idx 数据索引
+     * @param slot 槽位索引
+     */
     private async _layoutSingleSlot(node: Node | null, idx: number, slot: number) {
         if (!this.useVirtualList) return;
         if (this.useDynamicSize) {
@@ -1619,6 +1841,7 @@ export class VScrollView extends Component {
             if (currentPrefabIndex === targetPrefabIndex && this._slotNodes[slot]) {
                 newNode = this._slotNodes[slot];
             } else {
+                // 动态尺寸多模板模式下，类型变化时先回收到旧类型池，再取新类型节点。
                 if (this._slotNodes[slot] && this._nodePool && currentPrefabIndex >= 0) {
                     this._nodePool.put(this._slotNodes[slot], currentPrefabIndex);
                 }
@@ -1640,6 +1863,7 @@ export class VScrollView extends Component {
             newNode.active = true;
             this._updateItemClickHandler(newNode, idx);
             if (this.renderItemFn) this.renderItemFn(newNode, idx);
+            // 渲染后重新确认尺寸，支持内容驱动高度变化的 item。
             if (this.getItemHeightFn) {
                 const expectedSize = this.getItemHeightFn(idx);
                 if (this._itemSizes[idx] !== expectedSize) {
@@ -1762,8 +1986,16 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 默认 item 出现动画
+     * @param node item 节点
+     * @param index 数据索引
+     */
     private _playDefaultItemAppearAnimation(node: Node, index: number) { }
 
+    /** 给 item 节点挂载点击组件并同步数据索引
+     * @param node item 节点
+     * @param index 数据索引
+     */
     private _updateItemClickHandler(node: Node, index: number) {
         if (!this.useVirtualList) return;
         let itemScript = node.getComponent(VScrollViewItem);
@@ -1783,6 +2015,10 @@ export class VScrollView extends Component {
         itemScript.setDataIndex(index);
     }
 
+    /** 批量布局当前槽位
+     * @param firstIndex 第一个槽位绑定的数据索引
+     * @param forceRender 是否强制渲染
+     */
     private _layoutSlots(firstIndex: number, forceRender: boolean) {
         if (!this.useVirtualList) return;
         for (let s = 0; s < this._slots; s++) {
@@ -1796,6 +2032,7 @@ export class VScrollView extends Component {
         }
     }
 
+    /** 重新计算内容尺寸和滚动边界 */
     private _recomputeContentSize() {
         if (!this.useVirtualList) {
             this._contentSize = this._isVertical() ? this._contentTf.height : this._contentTf.width;
@@ -1825,15 +2062,18 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 获取当前页索引
+    /**************** [分页吸附]  ****************/
+
+    /** 获取当前页索引
+     * @returns 当前页索引
      */
     public getCurrentPageIndex(): number {
         return this._currentPageIndex;
     }
 
-    /**
-     * 滚动到指定页
+    /** 滚动到指定页
+     * @param pageIndex 目标页索引
+     * @param animate 是否使用动画
      */
     public scrollToPage(pageIndex: number, animate: boolean = true) {
         if (!this.enablePageSnap) {
@@ -1850,8 +2090,8 @@ export class VScrollView extends Component {
         this._updateCurrentPage(pageIndex);
     }
 
-    /**
-     * 获取最大页索引
+    /** 获取最大页索引
+     * @returns 最大页索引
      */
     private _getMaxPageIndex(): number {
         if (this.useDynamicSize) {
@@ -1862,8 +2102,8 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 根据当前位置计算最近的页索引
+    /** 根据当前位置计算最近的页索引
+     * @returns 最近页索引
      */
     private _getNearestPageIndex(): number {
         const pos = this._getContentMainPos();
@@ -1874,11 +2114,12 @@ export class VScrollView extends Component {
             let nearestIdx = 0;
             let minDist = Infinity;
 
+            // 动态尺寸页宽/高不固定，只能逐项比较与当前滚动位置的距离。
             for (let i = 0; i < this.totalCount; i++) {
                 const itemStart = this._prefixPositions[i];
                 const itemSize = this._itemSizes[i];
                 const itemCenter = itemStart + itemSize / 2;
-                const dist = Math.abs(searchPos - itemStart);
+                const dist = Math.abs(searchPos - itemCenter);
 
                 if (dist < minDist) {
                     minDist = dist;
@@ -1895,8 +2136,9 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 根据页索引计算目标位置
+    /** 根据页索引计算目标位置
+     * @param pageIndex 页索引
+     * @returns 目标主方向坐标
      */
     private _getPagePosition(pageIndex: number): number {
         let targetPos = 0;
@@ -1916,8 +2158,8 @@ export class VScrollView extends Component {
         return math.clamp(targetPos, this._boundsMin, this._boundsMax);
     }
 
-    /**
-     * 更新当前页并触发回调
+    /** 更新当前页并触发回调
+     * @param pageIndex 新页索引
      */
     private _updateCurrentPage(pageIndex: number) {
         if (this._currentPageIndex !== pageIndex) {
@@ -1928,9 +2170,7 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 执行分页吸附
-     */
+    /** 按当前位置执行分页吸附 */
     private _performPageSnap() {
         if (!this.enablePageSnap) return;
 
@@ -1954,9 +2194,8 @@ export class VScrollView extends Component {
 
         this._updateCurrentPage(targetPage);
     }
-    /**
-     * 根据滑动距离执行分页吸附
-     */
+
+    /** 根据触摸拖动距离执行分页吸附 */
     private _performPageSnapByDistance() {
         if (!this.enablePageSnap) return;
         if (this._scrollTween) return;
@@ -2007,8 +2246,8 @@ export class VScrollView extends Component {
         this._updateCurrentPage(targetPage);
     }
 
-    /**
-     * 获取当前页的尺寸
+    /** 获取当前页的主方向尺寸
+     * @returns 当前页主方向尺寸
      */
     private _getCurrentPageSize(): number {
         if (this.useDynamicSize) {
@@ -2019,8 +2258,9 @@ export class VScrollView extends Component {
         }
     }
 
-    /**
-     * 根据位置计算页索引
+    /** 根据主方向位置计算页索引
+     * @param pos 主方向坐标
+     * @returns 页索引
      */
     private _getPageIndexByPosition(pos: number): number {
         const searchPos = this._isVertical() ? pos : -pos;

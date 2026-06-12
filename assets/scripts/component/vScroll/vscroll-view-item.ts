@@ -6,10 +6,10 @@ if (!hasSorting2d) {
     console.warn(`❌当前引擎版本不支持Sorting2D组件，如果需要请切换到3.8.7及以上版本`);
 }
 
-/** 更改UI节点的渲染排序层级
- * @param sortingNode Node
- * @param sortingLayer number
- * @param sortingOrder number
+/** 更改 UI 节点的 2D 渲染排序层级
+ * @param sortingNode 需要修改排序的节点
+ * @param sortingLayer 目标排序层级值
+ * @param sortingOrder 同层级下的排序顺序
  */
 export function changeUISortingLayer(sortingNode: Node, sortingLayer: number, sortingOrder?: number) {
     if (!hasSorting2d) {
@@ -32,6 +32,7 @@ export function changeUISortingLayer(sortingNode: Node, sortingLayer: number, so
     //@ts-ignore
     const sort2d = sortingNode.getComponent(Sorting2D) || sortingNode.addComponent(Sorting2D);
     if (sort2d) {
+        sort2d.enabled = true;
         //@ts-ignore
         sort2d.sortingLayer = sortingLayer;
         if (sortingOrder !== undefined) {
@@ -41,15 +42,14 @@ export function changeUISortingLayer(sortingNode: Node, sortingLayer: number, so
     }
 }
 
-/** 挂载在每个 item 预制体的根节点上
- * 负责处理点击逻辑，通过回调通知父组件
- */
+/** 挂载在每个虚拟列表 item 根节点上，负责点击、长按和排序层处理 */
 @ccclass('VScrollViewItem')
 @menu('GCore/vScroll/VScrollViewItem')
 export class VScrollViewItem extends Component {
     /** 当前 item 对应的数据索引 */
     public dataIndex: number = -1;
 
+    /** 是否启用按下缩放反馈 */
     public useItemClickEffect: boolean = true;
 
     /** 点击回调（由 VirtualScrollView 注入） */
@@ -61,14 +61,24 @@ export class VScrollViewItem extends Component {
     /** 长按触发时长（秒） */
     public longPressTime: number = 0.6;
 
+    /** 当前触摸开始时命中的节点 */
     private _touchStartNode: Node | null = null;
+    /** 当前触摸是否已因滑动或取消事件失效 */
     private _isCanceled: boolean = false;
+    /** 触摸开始时的屏幕坐标 */
     private _startPos: Vec2 = new Vec2();
-    private _moveThreshold: number = 40; // 滑动阈值
-    private _clickThreshold: number = 10; // 点击阈值
-    private _longPressTimer: number = 0; // 长按计时器
-    private _isLongPressed: boolean = false; // 是否已触发长按
+    /** 超过该距离后判定为滑动并取消点击 */
+    private _moveThreshold: number = 40;
+    /** 点击允许的最大移动距离 */
+    private _clickThreshold: number = 10;
+    /** 当前长按累计计时 */
+    private _longPressTimer: number = 0;
+    /** 本次触摸是否已经触发长按 */
+    private _isLongPressed: boolean = false;
 
+    /**************** [生命周期]  ****************/
+
+    /** 注册 item 触摸事件 */
     onLoad() {
         // 一次性注册事件，生命周期内不变
         this.node.on(Node.EventType.TOUCH_START, this._onTouchStart, this);
@@ -77,10 +87,12 @@ export class VScrollViewItem extends Component {
         this.node.on(Node.EventType.TOUCH_CANCEL, this._onTouchCancel, this);
     }
 
+    /** 预留 start 生命周期 */
     protected start(): void {
         // this.onSortLayer();
     }
 
+    /** 解绑 item 触摸事件 */
     onDestroy() {
         // 清理事件
         this.node.off(Node.EventType.TOUCH_START, this._onTouchStart, this);
@@ -89,10 +101,9 @@ export class VScrollViewItem extends Component {
         this.node.off(Node.EventType.TOUCH_CANCEL, this._onTouchCancel, this);
     }
 
-    /**
-     * 将所有子节点的 Label 组件渲染单独排序在一起,并且item的每个lable组件都独立一个orderNumber,以免交错断合批
-     * @param node
-     */
+    /**************** [公共方法]  ****************/
+
+    /** 将所有子节点的 Label 组件设置为独立排序，避免交错断合批 */
     public onSortLayer() {
         let orderNumber = 1;
         const labels = this.node.getComponentsInChildren(Label);
@@ -104,23 +115,25 @@ export class VScrollViewItem extends Component {
 
     /** 关闭渲染分层 */
     public offSortLayer() {
-        let orderNumber = 0;
         const labels = this.node.getComponentsInChildren(Label);
         for (let i = 0; i < labels.length; i++) {
-            changeUISortingLayer(labels[i].node, 0, orderNumber);
-            // const item = labels[i];
-            // const sort2d = item.node.getComponent(Sorting2D);
-            // sort2d && (sort2d.enabled = false);
-            // orderNumber++;
+            const sort2d = labels[i].node.getComponent(Sorting2D);
+            if (sort2d) sort2d.enabled = false;
         }
     }
 
-    /** 外部调用：更新数据索引 */
+    /** 更新当前 item 对应的数据索引
+     * @param index 数据索引
+     */
     public setDataIndex(index: number) {
         this.dataIndex = index;
     }
 
+    /**************** [内部触摸逻辑]  ****************/
 
+    /** 累计长按时间并在达到阈值时触发长按
+     * @param dt 帧间隔时间
+     */
     protected update(dt: number): void {
         // 如果正在触摸且未取消，累加长按计时
         if (this._touchStartNode && !this._isCanceled && !this._isLongPressed) {
@@ -131,6 +144,7 @@ export class VScrollViewItem extends Component {
         }
     }
 
+    /** 触发长按回调并恢复视觉状态 */
     private _triggerLongPress() {
         this._isLongPressed = true;
         if (this.onLongPressCallback) {
@@ -140,6 +154,9 @@ export class VScrollViewItem extends Component {
         this._restoreScale();
     }
 
+    /** 处理触摸开始事件
+     * @param e 触摸事件
+     */
     private _onTouchStart(e: EventTouch) {
         // console.log("_onTouchStart");
         this._touchStartNode = this.node;
@@ -154,6 +171,9 @@ export class VScrollViewItem extends Component {
         }
     }
 
+    /** 处理触摸移动事件，移动超过阈值时取消点击和长按
+     * @param e 触摸事件
+     */
     private _onTouchMove(e: EventTouch) {
         if (this._isCanceled) return;
 
@@ -170,6 +190,9 @@ export class VScrollViewItem extends Component {
         }
     }
 
+    /** 处理触摸结束事件，在未滑动且未长按时触发点击
+     * @param e 触摸事件
+     */
     private _onTouchEnd(e: EventTouch) {
         if (this._isCanceled) {
             this._reset();
@@ -199,17 +222,22 @@ export class VScrollViewItem extends Component {
         this._reset();
     }
 
+    /** 处理触摸取消事件
+     * @param e 触摸事件
+     */
     private _onTouchCancel(e: EventTouch) {
         this._restoreScale();
         this._reset();
     }
 
+    /** 恢复 item 按下反馈缩放 */
     private _restoreScale() {
         if (this.useItemClickEffect && this.node.children.length > 0) {
             this.node.setScale(1.0, 1.0);
         }
     }
 
+    /** 重置本次触摸过程的临时状态 */
     private _reset() {
         this._touchStartNode = null;
         this._isCanceled = false;
