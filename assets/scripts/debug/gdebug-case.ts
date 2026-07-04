@@ -44,7 +44,21 @@
  * }
  */
 
-import { glog } from "../log/glog";
+import { DEBUG } from "cc/env";
+const SUCCESS_COLOR = "color: rgb(62, 184, 32);";
+const FAILURE_COLOR = "color: rgb(220, 20, 60);";
+
+class LocalLog {
+    public debugSuccess(message?: any, ...optionalParams: any[]) {
+        console.log(message, ...optionalParams, SUCCESS_COLOR);
+    }
+    public debugFailure(message?: any, ...optionalParams: any[]) {
+        if (DEBUG) {
+            console.warn(message, ...optionalParams, FAILURE_COLOR);
+        }
+    }
+}
+const glog = new LocalLog();
 
 /** 测试用例 */
 interface IGDebugCase {

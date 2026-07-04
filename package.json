@@ -12,6 +12,44 @@
     },
     "description": "i18n:gcore-framework.description",
     "main": "./dist/main.js",
+    "exports": {
+        "./event": {
+            "types": "./assets/scripts/event/index.ts",
+            "default": "./assets/scripts/event/index.ts"
+        },
+        "./storage": {
+            "types": "./assets/scripts/storage/index.ts",
+            "default": "./assets/scripts/storage/index.ts"
+        },
+        "./utils": {
+            "types": "./assets/scripts/utils/index.ts",
+            "default": "./assets/scripts/utils/index.ts"
+        },
+        "./res": {
+            "types": "./assets/scripts/res/index.ts",
+            "default": "./assets/scripts/res/index.ts"
+        },
+        "./mvc": {
+            "types": "./assets/scripts/mvc/index.ts",
+            "default": "./assets/scripts/mvc/index.ts"
+        },
+        "./ui": {
+            "types": "./assets/scripts/ui/index.ts",
+            "default": "./assets/scripts/ui/index.ts"
+        },
+        "./i18n": {
+            "types": "./assets/scripts/i18n/index.ts",
+            "default": "./assets/scripts/i18n/index.ts"
+        },
+        "./fsm": {
+            "types": "./assets/scripts/fsm/index.ts",
+            "default": "./assets/scripts/fsm/index.ts"
+        },
+        "./core-init": {
+            "types": "./assets/scripts/core-init.ts",
+            "default": "./assets/scripts/core-init.ts"
+        }
+    },
     "dependencies": {
         "@msgpack/msgpack": "^3.1.3",
         "papaparse": "^5.4.1",

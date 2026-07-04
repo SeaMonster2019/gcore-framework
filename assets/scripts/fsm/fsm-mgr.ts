@@ -1,4 +1,4 @@
-import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
+import { gcoreEvent, GCoreEvent } from "../event/index";
 import { BaseFsm } from "./base-fsm";
 
 

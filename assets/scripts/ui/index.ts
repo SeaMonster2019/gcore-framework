@@ -1,6 +1,3 @@
-export * from "./mvc/base-view";
-export * from "./window/window-mgr";
-export * from "./i18n/i18n-mgr";
 export * from "./action/tween-action";
 export * from "./utils/ui-util";
 
@@ -11,8 +8,6 @@ export * from "./components/animation/action-scale";
 export * from "./components/animation/frame-animation";
 export * from "./components/base/base-ui";
 export * from "./components/button/long-btn";
-export * from "./components/i18n/i18n-label";
-export * from "./components/i18n/i18n-rich-text";
 export * from "./components/operation/sliding-node";
 export * from "./components/prefab/prefab-create";
 export * from "./components/prefab/prefab-list";

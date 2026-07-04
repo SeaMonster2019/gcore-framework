@@ -1,5 +1,5 @@
 import { _decorator, CCFloat, Component, Node, Vec3 } from 'cc';
-import { ActionBackAndForth } from "@gcore/ui";
+import { ActionBackAndForth } from "../../action/tween-action";
 
 
 const { ccclass, property, menu } = _decorator;

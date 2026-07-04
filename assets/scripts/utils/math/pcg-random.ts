@@ -1,4 +1,4 @@
-import Long from "long";
+import { Long } from "../container/long";
 
 /** pcg随机数生成器 (标准PCG-XSH-RR算法) */
 export class PcgRandom {

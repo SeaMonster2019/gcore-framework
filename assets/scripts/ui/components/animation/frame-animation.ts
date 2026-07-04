@@ -1,5 +1,51 @@
 import { _decorator, Animation, AnimationClip, CCFloat, Component, Enum, Sprite, SpriteFrame } from 'cc';
-import { EFrameAnimationCurve } from '../../define/gcore-define';
+export enum EFrameAnimationCurve {
+    Linear = 'linear',
+    Smooth = 'smooth',
+    Fade = 'fade',
+    Constant = 'constant',
+    QuadIn = 'quadIn',
+    QuadOut = 'quadOut',
+    QuadInOut = 'quadInOut',
+    QuadOutIn = 'quadOutIn',
+    CubicIn = 'cubicIn',
+    CubicOut = 'cubicOut',
+    CubicInOut = 'cubicInOut',
+    CubicOutIn = 'cubicOutIn',
+    QuartIn = 'quartIn',
+    QuartOut = 'quartOut',
+    QuartInOut = 'quartInOut',
+    QuartOutIn = 'quartOutIn',
+    QuintIn = 'quintIn',
+    QuintOut = 'quintOut',
+    QuintInOut = 'quintInOut',
+    QuintOutIn = 'quintOutIn',
+    SineIn = 'sineIn',
+    SineOut = 'sineOut',
+    SineInOut = 'sineInOut',
+    SineOutIn = 'sineOutIn',
+    ExpoIn = 'expoIn',
+    ExpoOut = 'expoOut',
+    ExpoInOut = 'expoInOut',
+    ExpoOutIn = 'expoOutIn',
+    CircIn = 'circIn',
+    CircOut = 'circOut',
+    CircInOut = 'circInOut',
+    CircOutIn = 'circOutIn',
+    ElasticIn = 'elasticIn',
+    ElasticOut = 'elasticOut',
+    ElasticInOut = 'elasticInOut',
+    ElasticOutIn = 'elasticOutIn',
+    BackIn = 'backIn',
+    BackOut = 'backOut',
+    BackInOut = 'backInOut',
+    BackOutIn = 'backOutIn',
+    BounceIn = 'bounceIn',
+    BounceOut = 'bounceOut',
+    BounceInOut = 'bounceInOut',
+    BounceOutIn = 'bounceOutIn'
+}
+
 const { ccclass, property, menu, requireComponent, executeInEditMode } = _decorator;
 
 /** 程序化帧动画组件（使用 AnimationClip / Animation） */

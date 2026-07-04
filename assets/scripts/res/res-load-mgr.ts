@@ -1,5 +1,5 @@
 import { Asset, AssetManager, Sprite, SpriteAtlas, SpriteFrame } from "cc";
-import { gcoreEvent, GCoreEvent } from "../../event/gcore-event";
+import { gcoreEvent, GCoreEvent } from "../event/index";
 
 type Bundle = AssetManager.Bundle;
 

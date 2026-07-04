@@ -1,5 +1,8 @@
-import { BaseUi } from "@gcore/ui";
-import { BaseCtrl, BaseModel, IViewParams, IView } from "@gcore/mvc";
+import { BaseUi } from "../ui/index";
+import { gcoreEvent } from "../event/index";
+import { BaseCtrl } from "./base-ctrl";
+import { BaseModel } from "./base-model";
+import { IViewParams, IView } from "./mvc-interface";
 
 /** 视图基类，MVC架构中的视图层基类，继承自UiComp */
 export class BaseView<P extends IViewParams | undefined = undefined> extends BaseUi implements IView {

@@ -1,6 +1,7 @@
 import { _decorator, CCString, Component, Label } from "cc";
-import { gcore } from "gcore";
-import { GCoreEvent, gcoreEvent } from "@gcore/event";
+import { GCoreEvent, gcoreEvent } from "../../event/index";
+import { gcoreI18n } from "../index";
+
 
 const { ccclass, property, menu } = _decorator;
 
@@ -22,7 +23,7 @@ export class I18nLabel extends Component {
 	public params: string[] = [];
 
 	/** 文本 */
-	@property({ displayName: "Label", tooltip: "要显示文本的 Label 组件，如果不设置会自动获取当前节点上的 Label 组件" })
+	@property({ displayName: "Label", tooltip: "要显示文本 of Label 组件，如果不设置会自动获取当前节点上的 Label 组件" })
 	public label: Label | undefined;
 
 	/** 初始化 */
@@ -36,7 +37,7 @@ export class I18nLabel extends Component {
 	protected onEnable(): void {
 		gcoreEvent.on(GCoreEvent.LANGUAGE_CHANGED.SWITCH_LANGUAGE, this._refresh, this);
 		this._refresh();
-	}	
+	}
 
 	/** 失活 */
 	protected onDisable(): void {
@@ -60,7 +61,7 @@ export class I18nLabel extends Component {
 		if (!this.label || !this.i18nKey) {
 			return;
 		}
-		this.label.string = gcore.i18n.getText(this.i18nKey);
+		this.label.string = gcoreI18n.getText(this.i18nKey);
 	}
 
 }

@@ -1,9 +1,9 @@
 import { instantiate, isValid, Node, screen, UITransform, view } from "cc";
-import { gcoreEvent, GCoreEvent } from "@gcore/event";
+import { gcoreEvent, GCoreEvent } from "../event/index";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, IViewParams, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
-import { BaseView } from "@gcore/ui";
+import { BaseView } from "./base-view";
 
 /** MVC管理器，负责MVC框架的注册、视图的创建与销毁等核心管理 */
 export class MvcMgr {
@@ -47,11 +47,13 @@ export class MvcMgr {
         // 将MVC参数存入映射表
         this._paramsMap.set(params.tid, params);
         // 创建数据模型实例并初始化
-        const newModel = new params.ModelType(params);
+        const ModelClass = params.ModelType || BaseModel;
+        const newModel = new ModelClass(params);
         newModel.onInit();
         this._modelMap.set(params.tid, newModel);
         // 创建控制器实例并初始化（注入数据模型）
-        const newCtrl = new params.CtrlType(params, newModel);
+        const CtrlClass = params.CtrlType || BaseCtrl;
+        const newCtrl = new CtrlClass(params, newModel);
         newCtrl.onInit();
         this._ctrlMap.set(params.tid, newCtrl);
         // 发送注册视图事件
@@ -240,7 +242,7 @@ export class MvcMgr {
         const allTids = Array.from(this._viewMap.keys());
         // 遍历关闭所有视图
         for (const tid of allTids) {
-            if (!excludeTids || !excludeTids.includes(tid)) {
+            if (!excludeTids || excludeTids.indexOf(tid) === -1) {
                 this.close(tid, undefined, destroy);
             }
         }

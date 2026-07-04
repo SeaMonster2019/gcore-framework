@@ -1,5 +1,3 @@
-
-
 /** 状态机基类 */
 export class BaseFsm {
 

@@ -2,7 +2,6 @@
     "compilerOptions": {
         "target": "es2022",
         "module": "es6",
-        //"inlineSourceMap": true,
         "allowSyntheticDefaultImports": true,
         "sourceMap": true,
         "inlineSources": true,
@@ -16,30 +15,6 @@
         "paths": {
             "@msgpack/*": [
                 "../../node_modules/@msgpack/*"
-            ],
-            "gcore": [
-                "./scripts/index.ts"
-            ],
-            "gcore/*": [
-                "./scripts/*"
-            ],
-            "@gcore/event": [
-                "./scripts/event/index.ts"
-            ],
-            "@gcore/storage": [
-                "./scripts/storage/index.ts"
-            ],
-            "@gcore/utils": [
-                "./scripts/utils/index.ts"
-            ],
-            "@gcore/res": [
-                "./scripts/res/index.ts"
-            ],
-            "@gcore/mvc": [
-                "./scripts/mvc/index.ts"
-            ],
-            "@gcore/ui": [
-                "./scripts/ui/index.ts"
             ]
         },
         "types": [

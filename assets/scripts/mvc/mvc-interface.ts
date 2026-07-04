@@ -1,14 +1,14 @@
-import { Node, Prefab } from "cc";
+import { Node, Prefab, Component } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
 
 /** 视图接口，解耦 mvc 层对具体 BaseView 实现的强依赖 */
-export interface IView {
-    readonly node: Node;
-    readonly tid: number;
-    readonly iid: number;
-    initView(iid: number, mvcParam: IMvcParams, ctrl: BaseCtrl, model: BaseModel, params?: any): void;
-    onDestroy(): void;
+export interface IView extends Component {
+    getTid(): number;
+    getIid(): number;
+    onInit(tid: number, iid: number, ctrl: BaseCtrl, model: BaseModel, params?: any): void;
+    onOpen(): void;
+    onShow(): void;
 }
 
 /** 视图参数接口，可由业务层扩展 */
@@ -33,7 +33,7 @@ export type ViewOpenArgs<P> = P extends undefined ? [] : ({} extends P ? [param?
 
 /** MVC视图ID到打开参数的映射，可在业务工程中通过模块扩展补充具体视图参数类型 */
 export interface IViewParamMap {
-    [tid: number]: IViewParams;
+    [tid: number]: IViewParams | undefined;
 }
 
 /** 视图打开后返回的轻量句柄，避免调用方直接依赖具体View实现 */
@@ -59,9 +59,9 @@ export interface IMvcParams {
     /** 层级，用于控制视图的渲染层级 */
     layer: number;
     /** 控制器构造函数 */
-    CtrlType: new (...args: any[]) => BaseCtrl;
+    CtrlType?: new (...args: any[]) => BaseCtrl;
     /** 数据模型构造函数 */
-    ModelType: new (...args: any[]) => BaseModel;
+    ModelType?: new (...args: any[]) => BaseModel;
     /** 视图构造函数 */
     ViewType: new (...args: any[]) => ViewType;
     /** 视图属性配置 */

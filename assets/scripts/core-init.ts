@@ -1,5 +1,10 @@
-import { _decorator, Canvas, Component, EventHandler, JsonAsset, Node, Prefab } from "cc";
-import { gcore, IGCoreInitParams } from "./gcore";
+import { _decorator, Canvas, Component, EventHandler, isValid, Node, Prefab } from "cc";
+import { EventTarget } from "./event/index";
+import { gcoreMvc } from "./mvc/index";
+import { gcoreRes, gcoreConfig } from "./res/index";
+import { gcoreStorage } from "./storage/index";
+import { gcoreI18n } from "./i18n/index";
+
 const { property, ccclass, menu } = _decorator;
 
 /** GCore初始化组件 */
@@ -24,16 +29,25 @@ export class GCoreInit extends Component {
 
     /** 初始化 */
     private _init(): void {
+        // 静态注入事件系统的失效校验函数，彻底解除事件系统模块对 cc 的物理导入依赖
+        EventTarget.isValidChecker = isValid;
 
-        const params: IGCoreInitParams = {
-            uiRoot: this.root,
-            mainCanvas: this.mainCanvas,
-        };
+        // 按顺序自主初始化各模块单例
+        gcoreStorage.init();
+        gcoreRes.init();
+        gcoreConfig.init();
+        gcoreI18n.init();
+        gcoreMvc.init({
+            root: this.root,
+            viewPrefabFunc: (prefab: string, pack: string) => {
+                return gcoreRes.loadRes<Prefab>(prefab, pack);
+            },
+            viewPrefabReleaseFunc: (prefab: string, pack: string) => {
+                gcoreRes.releaseRes(prefab, pack);
+            }
+        });
 
-        gcore.init(params);
         EventHandler.emitEvents([this.gameHandler], null);
-
     }
 
 }
-
