@@ -1,11 +1,11 @@
 import { Canvas, Node, Prefab } from "cc";
-import { ConfigMgr } from "./core/config/config-mgr";
-import { FsmMgr } from "./core/fsm/fsm-mgr";
-import { I18nMgr } from "./core/i18n/i18n-mgr";
-import { MvcMgr } from "./core/mvc/mvc-mgr";
-import { ResLoadMgr } from "./core/res-load/res-load-mgr";
-import { StorageMgr } from "./core/storage/storage-mgr";
-import { WindowMgr } from "./core/window/window-mgr";
+import { ConfigMgr } from "@gcore/res";
+import { FsmMgr } from "@gcore/utils";
+import { I18nMgr } from "@gcore/ui";
+import { MvcMgr } from "@gcore/mvc";
+import { ResLoadMgr } from "@gcore/res";
+import { StorageMgr } from "@gcore/storage";
+import { WindowMgr } from "@gcore/ui";
 
 /** GCore初始化参数 */
 export interface IGCoreInitParams {
