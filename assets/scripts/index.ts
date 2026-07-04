@@ -22,6 +22,7 @@ export * from "./component/vScroll/vscroll-view";
 export * from "./container/delegate";
 export * from "./container/pool";
 export * from "./container/quadtree";
+export * from "./container/random-queue";
 export * from "./core/config/config-mgr";
 export * from "./core/fsm/base-fsm";
 export * from "./core/fsm/fsm-mgr";
