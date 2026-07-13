@@ -42,6 +42,22 @@ class GDebug {
         }
     }
 
+    /** 方法装饰器：类定义时直接注册到 window.debug[key]（不绑定 this，适用于不依赖实例的调试方法）
+     * @param key 注册到 window.debug 上的属性名，省略时使用方法名
+     * @example
+     * class Foo {
+     *   \@gdebug.addDebugDecorator('myFunc')
+     *   myFunc(x: number) { ... }
+     * }
+     */
+    public addDebugDecorator(key?: string) {
+        return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+            const debugKey = key ?? propertyKey;
+            gdebug.addDebugFunc(debugKey, descriptor.value);
+            return descriptor;
+        };
+    }
+
 }
 
 /**  调试工具集 */
