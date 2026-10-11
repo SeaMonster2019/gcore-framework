@@ -465,3 +465,6 @@ export class MvcMgr {
         return this._iid++;
     }
 }
+
+// GCore 全局 MVC 管理器单例（定义于此，避免与 index.ts 桶文件形成循环依赖）
+export const gcoreMvc = new MvcMgr();

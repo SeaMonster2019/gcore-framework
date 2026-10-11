@@ -317,6 +317,9 @@ export class I18nMgr {
 
 export const i18n = new I18nMgr();
 
+// GCore 全局本地化管理器单例（与 i18n 指向同一实例，避免在桶文件 new 造成循环依赖与重复实例）
+export const gcoreI18n = i18n;
+
 // 编辑器 Scene 进程中增加轻量定时监测（500ms），双重保证面板切换语言后秒级刷新
 if (EDITOR && typeof window !== 'undefined') {
     setInterval(() => {

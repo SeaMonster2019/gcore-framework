@@ -1,5 +1,5 @@
 import { sys } from "cc";
-import { gcoreStorage } from "./index";
+import { gcoreStorage } from "./storage-mgr";
 
 /** 存储系统 / 游戏配置管理器 */
 export class ConfigMgr {
@@ -95,3 +95,6 @@ export class ConfigMgr {
         }
     }
 }
+
+// GCore 全局配置管理器单例（定义于此，避免与 index.ts 桶文件形成循环依赖）
+export const gcoreConfig = new ConfigMgr();

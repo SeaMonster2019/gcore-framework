@@ -341,3 +341,6 @@ export class AudioMgr {
         this._effectChannel.resumeAll();
     }
 }
+
+// GCore 全局音频管理器单例（定义于此，避免与 index.ts 桶文件形成循环依赖）
+export const gcoreAudio = new AudioMgr();

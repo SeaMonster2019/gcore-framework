@@ -455,6 +455,9 @@ export class ResLoadMgr {
     }
 }
 
+// GCore 全局资源加载管理器单例（定义于此，避免与 index.ts 桶文件形成循环依赖）
+export const gcoreRes = new ResLoadMgr();
+
 
 /**
  * # ResLoadMgr 资源生命周期策略说明

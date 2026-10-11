@@ -147,3 +147,6 @@ export class StorageMgr {
         }
     }
 }
+
+// GCore 全局持久化管理器单例（定义于此，避免与 index.ts 桶文件形成循环依赖）
+export const gcoreStorage = new StorageMgr();

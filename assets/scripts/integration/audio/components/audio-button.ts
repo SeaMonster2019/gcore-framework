@@ -1,5 +1,5 @@
 import { _decorator, AudioClip, Button, Component, Node } from "cc";
-import { gcoreAudio } from "../index";
+import { gcoreAudio } from "../audio-mgr";
 
 const { ccclass, property, menu, disallowMultiple } = _decorator;
 
