@@ -13,11 +13,7 @@
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
         "outDir": "./dist",
-        "rootDir": "./source",
-        "types": [
-            "@cocos/creator-types/engine",
-            "@cocos/creator-types/editor"
-        ]
+        "rootDir": "./source"
     },
     "include": [
         "source/**/*"
