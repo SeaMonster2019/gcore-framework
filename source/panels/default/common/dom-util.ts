@@ -100,11 +100,20 @@ export async function pickPath(
     }
 
     const result = await editor.Dialog.select(options);
-    if (!result || result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    if (!result || result.canceled) {
         return '';
     }
 
-    return result.filePaths[0] as string;
+    let pickedPath = '';
+    if (typeof result === 'string') {
+        pickedPath = result;
+    } else if (Array.isArray(result.filePaths) && result.filePaths.length > 0) {
+        pickedPath = result.filePaths[0];
+    } else if (result.filePath) {
+        pickedPath = result.filePath;
+    }
+
+    return pickedPath;
 }
 
 /**
@@ -135,6 +144,8 @@ export function bindPickerBtn(
             if (picked) {
                 const normalized = normalizePathForStorage(picked, workspace);
                 inp.value = normalized;
+                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                inp.dispatchEvent(new Event('change', { bubbles: true }));
                 onPick(normalized);
                 if (logger) logger(`已选择: ${normalized}`);
             }
