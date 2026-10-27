@@ -66,6 +66,8 @@ export interface LubanToolState {
 
     /** .meta 清理目标目录 */
     metaCleanDir: string;
+    /** 图集引用修复目标预制体/场景路径 */
+    atlasTargetLocation: string;
     /** 字体替换目标资源文件路径 */
     fontFilePath: string;
     /** 字体替换目标预制体/场景文件或文件夹路径 */

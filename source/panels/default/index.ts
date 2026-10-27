@@ -222,6 +222,12 @@ module.exports = Editor.Panel.define({
         metaCleanDir: '#meta-clean-dir',
         metaCleanDirBtn: '#meta-clean-dir-btn',
         cleanMetaBtn: '#clean-meta-btn',
+        atlasTargetLoc: '#atlas-target-loc',
+        atlasTargetCurrentBtn: '#atlas-target-current-btn',
+        atlasTargetFileBtn: '#atlas-target-file-btn',
+        atlasTargetDirBtn: '#atlas-target-dir-btn',
+        previewFixAtlasBtn: '#preview-fix-atlas-btn',
+        fixAtlasBtn: '#fix-atlas-btn',
 
         // 工具设置分面板 DOM 选择器映射 (Tab 5)
         projectRootDir: '#project-root-dir',

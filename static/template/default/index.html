@@ -211,6 +211,28 @@
                     <button id="clean-meta-btn" class="primary-btn" type="button">开始扫描并清理 .meta 文件</button>
                 </div>
             </div>
+
+            <!-- 工具 2: 预制体/场景图集引用自动修复工具 -->
+            <div class="tool-card">
+                <h3>2. 预制体/场景图集引用自动修复工具</h3>
+                <p class="tab-desc" style="margin-bottom:8px;">
+                    扫描目标预制体/场景中的 Sprite 组件，为丢失图集绑定的组件补充图集引用（支持 .pac 自动图集与 .plist 纹理图集）。<br/>
+                    规则：以 "_" 开头的节点将被跳过（保留散图引用）；仅对位于项目图集范围内的图片帧自动补齐关联。
+                </p>
+                <div class="form-group">
+                    <label>目标预制体/场景 (支持选择 .prefab/.scene 文件或目标文件夹)：</label>
+                    <div class="file-picker">
+                        <input id="atlas-target-loc" type="text" placeholder="" />
+                        <button id="atlas-target-current-btn" class="action-btn" type="button" title="自动定位并填入 Cocos 编辑器中当前打开编辑的场景或预制体文件">选中当前打开</button>
+                        <button id="atlas-target-file-btn" type="button">选择文件</button>
+                        <button id="atlas-target-dir-btn" type="button">选择文件夹</button>
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top: 8px;">
+                    <button id="preview-fix-atlas-btn" class="action-btn" type="button">预览待修复组件 (仅检测不修改)</button>
+                    <button id="fix-atlas-btn" class="primary-btn" type="button">开始批量修复图集引用</button>
+                </div>
+            </div>
         </div>
 
         <!-- Tab 5: 工具设置 -->
