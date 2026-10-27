@@ -404,9 +404,14 @@ export class ToolsPanel {
                     for (const entry of entries) {
                         const fullPath = join(subDir, entry.name.toString());
                         if (entry.isDirectory()) {
-                            // 如果子目录内包含单独的 .pac 自动图集，则由该子图集管理，避免越界
-                            const hasSubPac = entries.some((item) => item.isFile() && item.name.toString().endsWith('.pac'));
-                            if (!hasSubPac) {
+                            // 检查目标子目录自身内部是否包含独立的 .pac 自动图集（若有则由该子图集独立管理，避免越界）
+                            let childHasPac = false;
+                            try {
+                                const childEntries = readdirSync(fullPath);
+                                childHasPac = childEntries.some((f) => f.endsWith('.pac'));
+                            } catch (_) {}
+
+                            if (!childHasPac) {
                                 scanPacFrames(fullPath);
                             }
                         } else if (entry.isFile()) {
