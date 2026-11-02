@@ -115,6 +115,11 @@ export class VScrollViewItem extends Component {
 
     /** 关闭渲染分层 */
     public offSortLayer() {
+        // 引擎未导出 Sorting2D 时 getComponent 会收到 undefined 并抛出 "Type must be non-nil"，
+        // 与 changeUISortingLayer 保持一致，先做能力判断再操作
+        if (!hasSorting2d) {
+            return;
+        }
         const labels = this.node.getComponentsInChildren(Label);
         for (let i = 0; i < labels.length; i++) {
             const sort2d = labels[i].node.getComponent(Sorting2D);
