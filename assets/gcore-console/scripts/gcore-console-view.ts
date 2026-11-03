@@ -1,4 +1,4 @@
-﻿import { _decorator, Color, Component, EditBox, EventKeyboard, Input, input, instantiate, isValid, KeyCode, Label, Node, UITransform, Widget } from "cc";
+﻿import { _decorator, Color, Component, EditBox, EventKeyboard, EventTouch, Input, input, instantiate, isValid, KeyCode, Label, Node, UITransform, Widget } from "cc";
 import { BaseUi, VScrollView } from "../../scripts/integration/ui/index";
 import { CONSOLE_CANDIDATE_ROW_COUNT, EConsoleLogLevel, IConsoleCommand, IConsoleView } from "./gcore-console-define";
 import { gcoreConsole } from "./gocre-console-mgr";
@@ -17,7 +17,10 @@ interface IForceLabelLayout {
  * 负责日志渲染、指令输入、候选检索框与显隐控制，是 `gcore-console.prefab` 根节点上的脚本组件
  * 控制台由 `GCoreConsole` 组件直接实例化，不经过 `gcoreMvc` 管理，因此继承 `BaseUi` 而非 `BaseView`
  * 日志区使用 `VScrollView` 虚拟列表渲染，每条日志对应一个日志条目预制体（`gcore-console-log.prefab`）
- * 未手动绑定引用时，会按预制体默认节点名自动查找：lbl-log（虚拟列表）/ edit / place-candidate / lbl-candidate-N / btn-send / btn-close / btn-clear
+ * 未手动绑定引用时，会按预制体默认节点名自动查找：lbl-log（虚拟列表）/ edit / place-candidate / lbl-candidate-N
+ * 按键约定：上下键仅用于切换候选指令；回车在候选框展开时确认选中项（补全指令名），否则提交执行
+ * 按钮约定：所有按钮的点击事件一律在预制体的 Button.clickEvents 中配置（target 指向根节点、handler = btnClick、
+ * customEventData = 按钮标识），脚本侧只保留 btnClick 一个字符串分发入口，禁止用 node.on/off 绑定点击事件
  */
 @ccclass("GCoreConsoleView")
 @menu("GCore/Debug/GCoreConsoleView")
@@ -36,6 +39,28 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
     /** 日志高度缓存的条目上限，超出后整体清空 */
     public static readonly MAX_HEIGHT_CACHE_SIZE = 1000;
 
+    /** 原生键盘事件：上方向键 */
+    public static readonly KEY_UP = 38;
+    /** 原生键盘事件：下方向键 */
+    public static readonly KEY_DOWN = 40;
+    /** 原生键盘事件：ESC */
+    public static readonly KEY_ESC = 27;
+
+    /** 预制体 Button.clickEvents 中配置的回调组件名（修改预制体时需与此保持一致） */
+    public static readonly BTN_COMPONENT = "GCoreConsoleView";
+    /** 按钮 clickEvents 的统一回调方法名 */
+    public static readonly BTN_HANDLER = "btnClick";
+    /** 按钮标识：发送 */
+    public static readonly BTN_KEY_SEND = "send";
+    /** 按钮标识：关闭 */
+    public static readonly BTN_KEY_CLOSE = "close";
+    /** 按钮标识：清屏 */
+    public static readonly BTN_KEY_CLEAR = "clear";
+    /** 按钮标识：上一条历史 */
+    public static readonly BTN_KEY_HISTORY_PREV = "history_prev";
+    /** 按钮标识：下一条历史 */
+    public static readonly BTN_KEY_HISTORY_NEXT = "history_next";
+
     /****************  编辑器绑定  ****************/
 
     /** 日志虚拟列表 */
@@ -53,18 +78,6 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
     /** 候选项文本（自上而下排列，数量与检索框行数一致） */
     @property({ type: [Label], displayName: "候选项文本", tooltip: "候选指令的逐行 Label，留空时按节点名 lbl-candidate-0/1/2... 自动查找" })
     public candidateLabels: Label[] = [];
-
-    /** 发送按钮 */
-    @property({ type: Node, displayName: "发送按钮", tooltip: "留空时按节点名 btn-send 自动查找" })
-    public btnSend: Node | null = null;
-
-    /** 关闭按钮 */
-    @property({ type: Node, displayName: "关闭按钮", tooltip: "留空时按节点名 btn-close 自动查找" })
-    public btnClose: Node | null = null;
-
-    /** 清屏按钮 */
-    @property({ type: Node, displayName: "清屏按钮", tooltip: "留空时按节点名 btn-clear 自动查找" })
-    public btnClear: Node | null = null;
 
     /****************  显示配置  ****************/
 
@@ -128,6 +141,10 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
     private _warnedNoList: boolean = false;
     /** 最近一次回车提交的时间戳（毫秒） */
     private _lastReturnTime: number = 0;
+    /** 历史指令浏览下标：0 为最新一条，-1 表示当前不在浏览历史（已回到空输入） */
+    private _historyNavIndex: number = -1;
+    /** Web 端原生键盘监听（EditBox 聚焦时引擎的全局 KEY_DOWN 收不到按键，需自行监听） */
+    private _nativeKeyDownHandler: ((event: KeyboardEvent) => void) | null = null;
     /** 用于离线测量日志高度的隐藏节点（挂在控制台下，位于屏幕外） */
     private _measureNode: Node | null = null;
     /** 隐藏测量节点上的 Label，配置与日志条目预制体完全一致 */
@@ -270,6 +287,8 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
         }
         this._hideCandidates();
         editBox.string = "";
+        // 提交后退出历史浏览状态，下次按上键从最新一条开始
+        this._historyNavIndex = -1;
         gcoreConsole.exec(input);
     }
 
@@ -520,15 +539,6 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
                 this.candidateLabels.push(label);
             }
         }
-        if (!this.btnSend) {
-            this.btnSend = this._findNode("btn-send");
-        }
-        if (!this.btnClose) {
-            this.btnClose = this._findNode("btn-close");
-        }
-        if (!this.btnClear) {
-            this.btnClear = this._findNode("btn-clear");
-        }
     }
 
     /** 安全查找子节点，未找到时返回 null（不抛异常）
@@ -574,14 +584,15 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
         }
         // EditBox 不派发方向键事件，上下切换候选项需要监听全局键盘
         input.on(Input.EventType.KEY_DOWN, this._onKeyDown, this);
-        this.btnSend?.on(Node.EventType.TOUCH_END, this._onBtnSend, this);
-        this.btnClose?.on(Node.EventType.TOUCH_END, this._onBtnClose, this);
-        this.btnClear?.on(Node.EventType.TOUCH_END, this._onBtnClear, this);
+        // EditBox 聚焦时 Web 端会把按键交给原生 input，引擎的全局 KEY_DOWN 收不到，
+        // 因此再挂一层 DOM 捕获监听兜底（原生平台无 document，自动跳过）
+        this._bindNativeKeys();
     }
 
-    /** 解绑输入框、按钮与全局按键事件 */
+    /** 解绑输入框与全局按键事件（按钮事件由预制体的 Button.clickEvents 承载，无需解绑） */
     private _unbindEvents(): void {
         input.off(Input.EventType.KEY_DOWN, this._onKeyDown, this);
+        this._unbindNativeKeys();
         const editBox = this.inputEditBox;
         if (editBox?.isValid) {
             const editNode = editBox.node;
@@ -589,15 +600,6 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
             editNode.off(EditBox.EventType.TEXT_CHANGED, this._onEditTextChanged, this);
             editNode.off(EditBox.EventType.EDITING_DID_ENDED, this._onEditEnded, this);
             editNode.off(EditBox.EventType.EDITING_RETURN, this._onEditReturn, this);
-        }
-        if (this.btnSend?.isValid) {
-            this.btnSend.off(Node.EventType.TOUCH_END, this._onBtnSend, this);
-        }
-        if (this.btnClose?.isValid) {
-            this.btnClose.off(Node.EventType.TOUCH_END, this._onBtnClose, this);
-        }
-        if (this.btnClear?.isValid) {
-            this.btnClear.off(Node.EventType.TOUCH_END, this._onBtnClear, this);
         }
     }
 
@@ -624,43 +626,52 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
         }
     }
 
-    /** 输入框回车提交 */
+    /** 输入框回车：候选展开时先确认选中项（补全指令名），否则提交输入
+     * 用回车而非空格确认，避免"输入空格写参数"与"确认补全"两种语义互相打架
+     */
     private _onEditReturn(): void {
-        this.submit();
-        // 记录回车时刻，用于区分"回车导致的失焦"与"用户主动切换焦点"
+        // 已经完整输入了指令名（与选中候选同名）时，回车应当直接执行，而不是再补一次全名
+        const selected = this._candidates[this._candidateIndex];
+        const typed = (this.inputEditBox?.string ?? "").trim();
+        if (selected && selected.name !== typed) {
+            this._confirmCandidate();
+        } else {
+            this._hideCandidates();
+            this.submit();
+        }
+        // 记录回车时刻，用于区分"回车导致的失焦"与"用户主动切换焦点"（补全后同样需要重新聚焦）
         this._lastReturnTime = Date.now();
     }
 
-    /** 输入内容变化：按空格确认选中项，其余情况重新检索候选
-     * @param editBox 输入框组件
-     */
+    /** 输入内容变化：重新检索候选（空格已不再是确认键，仅作为普通字符参与输入） */
     private _onEditTextChanged(editBox: EditBox): void {
         if (this._ignoreTextChange) {
             this._ignoreTextChange = false;
             return;
         }
-        const text = editBox?.string ?? "";
-        // 空格作为"选中并回填"的确认键，输入末尾出现空格即确认当前选中项
-        if (text.endsWith(" ")) {
-            this._confirmCandidate();
-            return;
-        }
-        this._updateCandidates(text);
+        // 用户手动输入即退出历史浏览状态
+        this._historyNavIndex = -1;
+        this._updateCandidates(editBox?.string ?? "");
     }
 
-    /** 全局按键：上下切换候选项，ESC 关闭检索框
+    /** 全局按键（EditBox 未聚焦时）：上下键与 ESC
      * @param event 键盘事件
      */
     private _onKeyDown(event: EventKeyboard): void {
-        if (!this.node.active || !this._isEditing || this._candidates.length === 0) {
+        if (!this.node.active) {
+            return;
+        }
+        // Web 端按键统一由 DOM 监听处理（引擎的全局 KEY_DOWN 在 Web 端不派发），
+        // 这里只在没有 DOM 监听的原生平台生效，避免同一按键被处理两次
+        if (this._nativeKeyDownHandler) {
             return;
         }
         switch (event.keyCode) {
             case KeyCode.ARROW_UP:
-                this._moveCandidate(-1);
+                this._handleArrowKey(-1);
                 break;
             case KeyCode.ARROW_DOWN:
-                this._moveCandidate(1);
+                this._handleArrowKey(1);
                 break;
             case KeyCode.ESCAPE:
                 this._hideCandidates();
@@ -668,6 +679,102 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
             default:
                 break;
         }
+    }
+
+    /** 绑定 Web 端原生键盘监听（捕获阶段，保证在 EditBox 之前拿到按键） */
+    private _bindNativeKeys(): void {
+        if (typeof document === "undefined" || this._nativeKeyDownHandler) {
+            return;
+        }
+        this._nativeKeyDownHandler = (event: KeyboardEvent) => this._onNativeKeyDown(event);
+        document.addEventListener("keydown", this._nativeKeyDownHandler, true);
+    }
+
+    /** 解绑 Web 端原生键盘监听 */
+    private _unbindNativeKeys(): void {
+        if (!this._nativeKeyDownHandler || typeof document === "undefined") {
+            return;
+        }
+        document.removeEventListener("keydown", this._nativeKeyDownHandler, true);
+        this._nativeKeyDownHandler = null;
+    }
+
+    /** Web 端原生按键：控制台可见时上下键始终归控制台使用
+     * 不能要求输入框处于编辑中——点过日志区会自动失焦，此时仍应能翻历史（实测引擎全局 KEY_DOWN 在 Web 端不派发）
+     * @param event 原生键盘事件
+     */
+    private _onNativeKeyDown(event: KeyboardEvent): void {
+        if (!this.node.active) {
+            return;
+        }
+        const key = event.key ?? "";
+        const code = (event as any).keyCode ?? 0;
+        const isUp = key === "ArrowUp" || code === GCoreConsoleView.KEY_UP;
+        const isDown = key === "ArrowDown" || code === GCoreConsoleView.KEY_DOWN;
+        const isEsc = key === "Escape" || code === GCoreConsoleView.KEY_ESC;
+        if (!isUp && !isDown && !isEsc) {
+            return;
+        }
+        if (isEsc) {
+            this._hideCandidates();
+        } else {
+            this._handleArrowKey(isUp ? -1 : 1);
+        }
+        // 阻止光标随上下键跳动，并避免事件继续冒泡触发重复处理
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    /** 处理上下键：仅用于切换候选项，翻历史指令统一交给输入区旁边的上下按钮
+     * @param offset -1 为上一项，1 为下一项
+     */
+    private _handleArrowKey(offset: number): void {
+        if (!this.node.active || this._candidates.length === 0) {
+            return;
+        }
+        this._moveCandidate(offset);
+    }
+
+    /** 浏览历史指令：上翻到更早一条，下翻到更新一条，越过最新一条后回到空输入
+     * @param offset -1 为上（更早），1 为下（更新）
+     */
+    private _navigateHistory(offset: number): void {
+        const history = gcoreConsole.getHistory();
+        if (history.length === 0) {
+            return;
+        }
+        if (offset < 0) {
+            // 上：向更早的历史移动，已到最早一条则不再变化
+            if (this._historyNavIndex >= history.length - 1) {
+                return;
+            }
+            this._historyNavIndex++;
+        } else {
+            // 下：向更新的历史移动，已在最新一条则回到空输入
+            if (this._historyNavIndex < 0) {
+                return;
+            }
+            this._historyNavIndex--;
+        }
+        const text = this._historyNavIndex < 0 ? "" : history[history.length - 1 - this._historyNavIndex];
+        this._setInputText(text);
+        // 回填历史不触发检索，保持候选框关闭
+        this._hideCandidates();
+    }
+
+    /** 以代码方式写入输入框内容，跳过一次文本变化回调
+     * @param text 写入的文本
+     */
+    private _setInputText(text: string): void {
+        if (!this.inputEditBox) {
+            return;
+        }
+        this._ignoreTextChange = true;
+        this.inputEditBox.string = text;
+        // EditBox 可能不派发文本变化，兜底在下一帧复位标志，避免吞掉用户的下一次输入
+        this.scheduleOnce(() => {
+            this._ignoreTextChange = false;
+        }, 0);
     }
 
     /** 按当前输入重新检索候选，并把选中项重置为第一项
@@ -678,9 +785,13 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
             this._hideCandidates();
             return;
         }
-        const key = (input ?? "").trim();
-        // 输入为空时不再展示候选
-        this._candidates = key ? gcoreConsole.matchCommands(key, Math.max(1, Math.floor(this.maxCandidates))) : [];
+        const raw = input ?? "";
+        const key = raw.trim();
+        // 已输入空格说明开始写参数，此时只做普通输入，不再补全指令名（与 cmd 补全行为一致）
+        // 输入为空时同样不展示候选
+        this._candidates = key && raw.indexOf(" ") < 0
+            ? gcoreConsole.matchCommands(key, Math.max(1, Math.floor(this.maxCandidates)))
+            : [];
         // 每次输入新内容都把选中项调整为第一项
         this._candidateIndex = 0;
         this._refreshCandidatePanel();
@@ -708,15 +819,8 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
             return;
         }
         this._hideCandidates();
-        if (!this.inputEditBox) {
-            return;
-        }
         // 回填指令名并补一个空格，方便继续输入参数；回填的文本变化不再触发检索
-        this._ignoreTextChange = true;
-        this.inputEditBox.string = `${command.name} `;
-        this.scheduleOnce(() => {
-            this._ignoreTextChange = false;
-        }, 0);
+        this._setInputText(`${command.name} `);
     }
 
     /** 关闭候选检索框并清空候选 */
@@ -753,19 +857,39 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
 
     /****************  私有方法：按钮  ****************/
 
-    /** 点击发送按钮 */
-    private _onBtnSend(): void {
-        this.submit();
+    /** 按钮点击统一入口：由按钮组件的 clickEvents 调用，按 customEventData 分发
+     * @param event 按钮点击事件（不使用）
+     * @param key 按钮标识，取自 clickEvents 的 customEventData
+     */
+    public btnClick(event?: EventTouch, key?: string): void {
+        switch (key) {
+            case GCoreConsoleView.BTN_KEY_SEND:
+                this.submit();
+                break;
+            case GCoreConsoleView.BTN_KEY_CLOSE:
+                this.setVisible(false);
+                break;
+            case GCoreConsoleView.BTN_KEY_CLEAR:
+                gcoreConsole.clearLogs();
+                this.focusInput();
+                break;
+            case GCoreConsoleView.BTN_KEY_HISTORY_PREV:
+                this._fillHistoryByButton(-1);
+                break;
+            case GCoreConsoleView.BTN_KEY_HISTORY_NEXT:
+                this._fillHistoryByButton(1);
+                break;
+            default:
+                break;
+        }
     }
 
-    /** 点击关闭按钮，隐藏控制台 */
-    private _onBtnClose(): void {
-        this.setVisible(false);
-    }
-
-    /** 点击清屏按钮 */
-    private _onBtnClear(): void {
-        gcoreConsole.clearLogs();
+    /** 按按钮方向填充历史并把焦点交还输入框，便于直接回车执行
+     * @param offset -1 为上一条（更早），1 为下一条（更新）
+     */
+    private _fillHistoryByButton(offset: number): void {
+        this._hideCandidates();
+        this._navigateHistory(offset);
         this.focusInput();
     }
 
