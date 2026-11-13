@@ -1,11 +1,10 @@
-import { BaseUi } from "../ui/index";
-import { gcoreEvent } from "../../system/event/index";
+import { Component } from "cc";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { IViewParams, IView } from "./mvc-interface";
+import { IView, IViewParams } from "./mvc-interface";
 
-/** 视图基类，MVC架构中的视图层基类，继承自UiComp */
-export class BaseView<P extends IViewParams | undefined = undefined> extends BaseUi implements IView {
+/** 视图基类，MVC架构中的视图层基类，继承自 Component */
+export class BaseView<P extends IViewParams | undefined = undefined> extends Component implements IView {
 
     /** 关闭当前视图的方法，由框架在初始化时绑定 */
     public static CloseFunc: (tid: number, iid: number) => void;

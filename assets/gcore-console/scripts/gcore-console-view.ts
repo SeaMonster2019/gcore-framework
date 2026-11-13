@@ -1,5 +1,5 @@
 ﻿import { _decorator, Color, Component, EditBox, EventKeyboard, EventTouch, Input, input, instantiate, isValid, KeyCode, Label, Node, UITransform, Widget } from "cc";
-import { BaseUi, VScrollView } from "../../scripts/integration/ui/index";
+import { VScrollView } from "../../scripts/integration/ui/index";
 import { CONSOLE_CANDIDATE_ROW_COUNT, EConsoleLogLevel, IConsoleCommand, IConsoleView } from "./gcore-console-define";
 import { gcoreConsole } from "./gocre-console-mgr";
 
@@ -15,7 +15,6 @@ interface IForceLabelLayout {
 
 /** 控制台视图
  * 负责日志渲染、指令输入、候选检索框与显隐控制，是 `gcore-console.prefab` 根节点上的脚本组件
- * 控制台由 `GCoreConsole` 组件直接实例化，不经过 `gcoreMvc` 管理，因此继承 `BaseUi` 而非 `BaseView`
  * 日志区使用 `VScrollView` 虚拟列表渲染，每条日志对应一个日志条目预制体（`gcore-console-log.prefab`）
  * 未手动绑定引用时，会按预制体默认节点名自动查找：lbl-log（虚拟列表）/ edit / place-candidate / lbl-candidate-N
  * 按键约定：上下键仅用于切换候选指令；回车在候选框展开时确认选中项（补全指令名），否则提交执行
@@ -25,7 +24,7 @@ interface IForceLabelLayout {
 @ccclass("GCoreConsoleView")
 @menu("GCore/Debug/GCoreConsoleView")
 @disallowMultiple(true)
-export class GCoreConsoleView extends BaseUi implements IConsoleView {
+export class GCoreConsoleView extends Component implements IConsoleView {
 
     /** 回车提交后允许重新聚焦的时间窗（毫秒），用于区分回车失焦与用户主动切换焦点 */
     public static readonly REFOCUS_WINDOW_MS = 300;
@@ -98,31 +97,31 @@ export class GCoreConsoleView extends BaseUi implements IConsoleView {
     public enableCandidate: boolean = true;
 
     /** 候选项常规颜色 */
-    @property({ type: Color, displayName: "候选常规色", tooltip: "未选中候选项的文本颜色" })
+    @property({ displayName: "候选常规色", tooltip: "未选中候选项的文本颜色" })
     public candidateNormalColor: Color = new Color(200, 214, 229, 255);
 
     /** 候选项高亮颜色 */
-    @property({ type: Color, displayName: "候选高亮色", tooltip: "当前选中候选项的文本颜色" })
+    @property({ displayName: "候选高亮色", tooltip: "当前选中候选项的文本颜色" })
     public candidateHighlightColor: Color = new Color(255, 216, 102, 255);
 
     /** 普通日志颜色 */
-    @property({ type: Color, displayName: "普通日志色" })
+    @property({ displayName: "普通日志色" })
     public logColor: Color = new Color(200, 214, 229, 255);
 
     /** 警告日志颜色 */
-    @property({ type: Color, displayName: "警告日志色" })
+    @property({ displayName: "警告日志色" })
     public warnColor: Color = new Color(255, 216, 102, 255);
 
     /** 错误日志颜色 */
-    @property({ type: Color, displayName: "错误日志色" })
+    @property({ displayName: "错误日志色" })
     public errorColor: Color = new Color(255, 107, 107, 255);
 
     /** 系统日志颜色 */
-    @property({ type: Color, displayName: "系统日志色" })
+    @property({ displayName: "系统日志色" })
     public systemColor: Color = new Color(126, 231, 255, 255);
 
     /** 指令回显颜色 */
-    @property({ type: Color, displayName: "回显日志色" })
+    @property({ displayName: "回显日志色" })
     public commandColor: Color = new Color(123, 237, 159, 255);
 
     /****************  运行时状态  ****************/
