@@ -1,4 +1,4 @@
-import { Asset, assetManager, AssetManager, AudioClip, Constructor, isValid, Prefab, resources } from "cc";
+import { Asset, assetManager, AssetManager, AudioClip, Constructor, isValid, Prefab, resources, Sprite, SpriteAtlas, SpriteFrame } from "cc";
 import { gcoreEvent, GCoreEvent } from "../../system/event/index";
 
 type Bundle = AssetManager.Bundle;
@@ -280,11 +280,13 @@ export class ResLoadMgr {
     /** 设置 Sprite 的 SpriteFrame */
     public async setSprite(resPath: string, packName: string, sprite: Sprite): Promise<boolean> {
         if (!sprite || !sprite.isValid) return false;
-        this._compLoadingMap.set(sprite, resPath);
+        // 竞争标识必须包含 packName：多语言图片是同 resPath、不同 Bundle，仅用 resPath 会让旧请求覆盖新语言
+        const requestKey = `${packName}:${resPath}`;
+        this._compLoadingMap.set(sprite, requestKey);
 
         try {
             const asset = await this.loadRes<SpriteFrame>(resPath, packName);
-            if (!sprite.isValid || this._compLoadingMap.get(sprite) !== resPath) {
+            if (!sprite.isValid || this._compLoadingMap.get(sprite) !== requestKey) {
                 this.releaseRes(resPath, packName);
                 return false;
             }
@@ -302,7 +304,7 @@ export class ResLoadMgr {
             this._compActiveResMap.set(sprite, { resPath, packName });
             return true;
         } catch (e) {
-            if (this._compLoadingMap.get(sprite) === resPath) this._compLoadingMap.delete(sprite);
+            if (this._compLoadingMap.get(sprite) === requestKey) this._compLoadingMap.delete(sprite);
             throw e;
         }
     }
@@ -310,7 +312,7 @@ export class ResLoadMgr {
     /** 从图集中设置 Sprite 的 SpriteFrame */
     public async setSpriteFormAtlas(resPath: string, spriteFrameName: string, packName: string, sprite: Sprite): Promise<boolean> {
         if (!sprite || !sprite.isValid) return false;
-        const requestKey = `${resPath}#${spriteFrameName}`;
+        const requestKey = `${packName}:${resPath}#${spriteFrameName}`;
         this._compLoadingMap.set(sprite, requestKey);
 
         try {

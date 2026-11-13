@@ -1,4 +1,4 @@
-import { Component } from "cc";
+import { assetManager, Component, SpriteFrame } from "cc";
 import { EDITOR } from "cc/env";
 
 /** 树形菜单节点结构接口 */
@@ -323,6 +323,121 @@ export class I18nEditorUtil {
             }
         } catch (e) {
             console.error('[I18n] 打开 Key 选择菜单失败:', e);
+        }
+    }
+
+    /** 获取当前编辑器选中的预览语言
+     * @returns 预览语言标识，读取失败时回退 zh-Hans
+     */
+    public static getPreviewLanguage(): string {
+        if (!EDITOR) {
+            return "";
+        }
+        try {
+            const reqFunc = (typeof window !== 'undefined' ? (window as any).require : (globalThis as any).require);
+            const globalEditor = (typeof window !== 'undefined' ? (window as any).Editor : (globalThis as any).Editor);
+            const workspace = globalEditor?.Project?.path;
+            if (typeof reqFunc !== 'function' || !workspace) {
+                return "zh-Hans";
+            }
+
+            // 与 i18n-mgr 的轮询保持一致，预览语言由扩展面板写入 temp/gcore-lang-state.json
+            const fs = reqFunc('fs');
+            const path = reqFunc('path');
+            const stateFile = path.join(workspace, 'temp', 'gcore-lang-state.json');
+            if (!fs.existsSync(stateFile)) {
+                return "zh-Hans";
+            }
+            const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+            return state?.previewLang || "zh-Hans";
+        } catch (e) {
+            return "zh-Hans";
+        }
+    }
+
+    /** 编辑器模式下按 db 资源地址加载图片精灵帧
+     * @param dbUrls 候选资源地址，按优先级排列（兼容不同图片扩展名与语言回退）
+     * @returns 加载到的精灵帧，全部失败时返回 null
+     */
+    public static async loadEditorSpriteFrame(dbUrls: string[]): Promise<SpriteFrame | null> {
+        if (!EDITOR) {
+            return null;
+        }
+        try {
+            const globalEditor = (typeof window !== 'undefined' ? (window as any).Editor : (globalThis as any).Editor);
+            if (!globalEditor?.Message || typeof globalEditor.Message.request !== 'function') {
+                return null;
+            }
+
+            // 先在磁盘上过滤候选，缺图时不再逐个发起跨进程 IPC 查询
+            for (const url of this._filterExistingDbUrls(dbUrls, globalEditor)) {
+                if (!url) continue;
+                try {
+                    const info = await globalEditor.Message.request('asset-db', 'query-asset-info', url);
+                    let uuid: string = info?.uuid ?? "";
+                    if (!uuid) {
+                        try {
+                            uuid = await globalEditor.Message.request('asset-db', 'query-uuid', url) ?? "";
+                        } catch (e) {}
+                    }
+                    if (!uuid) continue;
+
+                    // 图片在 asset-db 中登记为 ImageAsset，SpriteFrame 固定是 @f9941 子资源
+                    const frameUuid = `${uuid}@f9941`;
+                    const cached = assetManager.assets.get(frameUuid);
+                    if (cached) {
+                        return cached as SpriteFrame;
+                    }
+
+                    const frame = await new Promise<SpriteFrame | null>((resolve) => {
+                        assetManager.loadAny({ uuid: frameUuid }, (err, asset) => {
+                            resolve(err || !asset ? null : asset as SpriteFrame);
+                        });
+                    });
+                    if (frame) {
+                        return frame;
+                    }
+                } catch (e) {
+                    // 该候选地址不存在或查询失败，继续尝试下一个扩展名 / 回退语言包
+                }
+            }
+        } catch (e) {
+            // 编辑器资源尚未导入或 IPC 不可用时，静默降级为预制体上的静态兜底图
+        }
+        return null;
+    }
+
+    /** 过滤出磁盘上真实存在的候选资源，避免缺图时逐个发起跨进程 IPC
+     * @param dbUrls 候选 db 资源地址
+     * @param globalEditor 编辑器全局对象
+     * @returns 真实存在的候选地址，无法确认磁盘状态时原样返回
+     */
+    private static _filterExistingDbUrls(dbUrls: string[], globalEditor: any): string[] {
+        try {
+            const reqFunc = (typeof window !== 'undefined' ? (window as any).require : (globalThis as any).require);
+            const workspace = globalEditor?.Project?.path;
+            if (typeof reqFunc !== 'function' || !workspace) {
+                return dbUrls;
+            }
+
+            const fs = reqFunc('fs');
+            const path = reqFunc('path');
+            const result: string[] = [];
+            for (const url of dbUrls) {
+                if (!url) continue;
+                // db:// 资源地址与工程内文件一一对应，磁盘上不存在的候选（缺图或缺扩展名）直接剔除
+                if (!url.startsWith('db://')) {
+                    result.push(url);
+                    continue;
+                }
+                if (fs.existsSync(path.join(workspace, url.slice('db://'.length)))) {
+                    result.push(url);
+                }
+            }
+            return result;
+        } catch (e) {
+            // 无法确认磁盘状态时保留全部候选，退化为逐个查询
+            return dbUrls;
         }
     }
 

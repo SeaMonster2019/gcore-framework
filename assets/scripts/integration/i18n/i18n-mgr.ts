@@ -22,6 +22,13 @@ export class I18nMgr {
         return this._language;
     }
 
+    /** 获取编辑器当前的预览语言
+     * @returns 预览语言标识，由 CSV 轮询维护；轮询未启动或运行时返回空字符串
+     */
+    public get editorPreviewLang(): string {
+        return EDITOR ? this._editorPreviewLang : "";
+    }
+
     /** 获取本地化字典的只读映射 */
     public get textMap(): Readonly<{ [key: string]: string }> {
         return this._textMap;
