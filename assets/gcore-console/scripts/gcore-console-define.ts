@@ -41,9 +41,9 @@ export interface IConsoleParamDef {
 /** 指令处理函数
  * @param args 解析后的参数列表（已按空格切分并去除引号）
  * @param raw 用户原始输入
- * @returns 返回字符串时自动作为一条日志输出到控制台
+ * @returns 返回字符串时自动作为一条日志输出到控制台；其余返回值由 window.gm 桥接原样交给编程调用方
  */
-export type ConsoleCommandHandler = (args: string[], raw: string) => void | string;
+export type ConsoleCommandHandler = (args: string[], raw: string) => unknown;
 
 /** 控制台指令定义 */
 export interface IConsoleCommand {
@@ -59,6 +59,8 @@ export interface IConsoleCommand {
     handler: ConsoleCommandHandler;
     /** 所属分组，用于 help 分组展示 */
     group?: string;
+    /** 是否注入到 window.gm.<指令名> 供自动化脚本调用，缺省为注入 */
+    exposeToGlobal?: boolean;
 }
 
 /****************  初始化选项  ****************/
@@ -71,6 +73,8 @@ export interface IConsoleOptions {
     maxHistoryCount?: number;
     /** 是否接管 console.log/warn/error 的输出同步到控制台，默认关闭 */
     captureConsole?: boolean;
+    /** 是否把已注册指令注入到 window.gm.<指令名>，默认仅 DEBUG 构建开启，正式包需显式开启 */
+    exposeGlobalCommands?: boolean;
 }
 
 /****************  视图契约  ****************/
