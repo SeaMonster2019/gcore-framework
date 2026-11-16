@@ -1,3 +1,4 @@
+import { DEBUG } from "cc/env";
 import { ConsoleCommandHandler, EConsoleLogLevel, IConsoleCommand, IConsoleLogItem, IConsoleOptions, IConsoleView } from "./gcore-console-define";
 
 // 类型定义统一迁移到 gcore-console-define，此处转发导出，保证"从管理器导入类型"的既有写法仍然可用
@@ -46,6 +47,10 @@ class ConsoleMgr {
     private _view: IConsoleView | null = null;
     /** 是否被 console 接管函数正在回调中（防止日志递归） */
     private _capturing: boolean = false;
+    /** 是否把已注册指令注入到 window.gm；DEBUG 构建默认开启，正式包需显式开启 */
+    private _exposeGlobalCommands: boolean = DEBUG;
+    /** 指令名（小写）-> 注入到 window.gm 的属性名列表，注销时按此精确清理 */
+    private _globalKeys: Map<string, string[]> = new Map();
     /** 原始的 console.log */
     private _originLog: ((...args: any[]) => void) | null = null;
     /** 原始的 console.warn */
@@ -65,6 +70,11 @@ class ConsoleMgr {
         this._inited = true;
         this._maxLogCount = Math.max(1, options.maxLogCount ?? ConsoleMgr.DEFAULT_MAX_LOG_COUNT);
         this._maxHistoryCount = Math.max(1, options.maxHistoryCount ?? ConsoleMgr.DEFAULT_MAX_HISTORY_COUNT);
+        // 全局桥接默认只在 DEBUG 构建开启；显式关闭时连 init 之前已注入的指令一起清理
+        this._exposeGlobalCommands = options.exposeGlobalCommands ?? DEBUG;
+        if (!this._exposeGlobalCommands) {
+            this._clearGlobalCommands();
+        }
 
         this._registerBuiltinCommands();
 
@@ -78,6 +88,7 @@ class ConsoleMgr {
         this.setCaptureConsole(false);
         this.setView(null);
         this._commandMap.clear();
+        this._clearGlobalCommands();
         this._logList.length = 0;
         this._historyList.length = 0;
         this._inited = false;
@@ -90,7 +101,8 @@ class ConsoleMgr {
      * @returns 是否注册成功（重名或缺少处理函数时失败）
      */
     public register(command: IConsoleCommand): boolean {
-        const name = (command.name || "").trim().toLowerCase();
+        const rawName = (command.name || "").trim();
+        const name = rawName.toLowerCase();
         if (!name) {
             console.error(`注册控制台指令失败：指令名为空`);
             return false;
@@ -102,7 +114,14 @@ class ConsoleMgr {
         if (this._commandMap.has(name)) {
             console.warn(`控制台指令重复注册，已覆盖：${name}`);
         }
-        this._commandMap.set(name, { ...command, name });
+        const normalized: IConsoleCommand = { ...command, name };
+        this._commandMap.set(name, normalized);
+        // 注册即同步全局桥接，让自动化脚本可用 window.gm.<指令名>() 调用
+        if (command.exposeToGlobal === false) {
+            this._removeCommandFromGlobal(name);
+        } else {
+            this._exposeCommand(name, rawName, normalized);
+        }
         console.log(`%c 注册控制台指令:${name}`, "color: blue;");
         return true;
     }
@@ -136,12 +155,123 @@ class ConsoleMgr {
      * @returns 是否成功注销
      */
     public unregister(name: string): boolean {
-        return this._commandMap.delete((name || "").trim().toLowerCase());
+        const key = (name || "").trim().toLowerCase();
+        const deleted = this._commandMap.delete(key);
+        if (deleted) {
+            this._removeCommandFromGlobal(key);
+        }
+        return deleted;
     }
 
     /** 清空所有已注册的指令（内置指令也会被清除，通常仅用于测试） */
     public clearCommands(): void {
         this._commandMap.clear();
+        this._clearGlobalCommands();
+    }
+
+    /****************  全局桥接（window.gm）  ****************/
+
+    /**
+     * 把指令包装成可直接调用的函数挂到 window.gm。
+     * 与 exec 的区别：exec 只返回是否命中并把字符串结果写进日志；
+     * 桥接函数直接返回 handler 返回值，便于 playwright-test 用 cc_eval_code 拿到结构化结果。
+     * @param name 规范化后的小写指令名
+     * @param rawName 注册时的原始指令名（保留驼峰）
+     * @param command 指令定义
+     */
+    private _exposeCommand(name: string, rawName: string, command: IConsoleCommand): void {
+        if (!this._exposeGlobalCommands || typeof globalThis === "undefined") {
+            return;
+        }
+        const root = this._getGlobalRoot();
+        // 编程调用参数统一转字符串，复用参数补齐与必填校验，再原样返回 handler 结果
+        const bridge = (...callArgs: unknown[]): unknown => {
+            if (!this._enabled) {
+                return null;
+            }
+            const tokens = callArgs.map((arg) => this._toCommandToken(arg));
+            const args = this._resolveArgs(command, tokens);
+            if (!args) {
+                throw new Error(`参数不足，用法：${this.buildUsage(command)}`);
+            }
+            return command.handler(args, tokens.join(" "));
+        };
+        // 同时暴露注册时的驼峰名与小写名，自动化脚本无需为了点号访问改成全小写
+        const keys = new Set<string>();
+        for (const candidate of [rawName, name]) {
+            const key = this._toGlobalKey(candidate);
+            if (key) {
+                keys.add(key);
+            }
+        }
+        for (const key of keys) {
+            root[key] = bridge;
+        }
+        this._globalKeys.set(name, Array.from(keys));
+    }
+
+    /** 注销单条指令对应的全局桥接函数 */
+    private _removeCommandFromGlobal(name: string): void {
+        const keys = this._globalKeys.get(name);
+        if (!keys) {
+            return;
+        }
+        const root = (globalThis as any).gm;
+        if (root && typeof root === "object") {
+            for (const key of keys) {
+                delete root[key];
+            }
+        }
+        this._globalKeys.delete(name);
+    }
+
+    /** 清空本管理器注入的全部桥接函数（不影响其他模块挂在 window.gm 上的属性） */
+    private _clearGlobalCommands(): void {
+        const root = (globalThis as any).gm;
+        if (root && typeof root === "object") {
+            for (const keys of this._globalKeys.values()) {
+                for (const key of keys) {
+                    delete root[key];
+                }
+            }
+        }
+        this._globalKeys.clear();
+    }
+
+    /** 获取或创建 window.gm 容器，复用已有对象避免覆盖其他模块的属性 */
+    private _getGlobalRoot(): Record<string, unknown> {
+        const scope = globalThis as any;
+        if (!scope.gm || typeof scope.gm !== "object") {
+            scope.gm = {};
+        }
+        return scope.gm as Record<string, unknown>;
+    }
+
+    /** 把指令名净化成合法的 JS 属性名，保证能用点号访问 */
+    private _toGlobalKey(name: string): string {
+        const key = (name || "").replace(/[^A-Za-z0-9_$]/g, "_");
+        if (!key) {
+            return "";
+        }
+        return /^[A-Za-z_$]/.test(key) ? key : `cmd_${key}`;
+    }
+
+    /** 把编程调用的参数转成 console 的 string token */
+    private _toCommandToken(value: unknown): string {
+        if (value === undefined || value === null) {
+            return "";
+        }
+        if (typeof value === "string") {
+            return value;
+        }
+        if (typeof value === "object") {
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
     }
 
     /****************  指令查询  ****************/
