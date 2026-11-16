@@ -1,4 +1,4 @@
-import { instantiate, isValid, js, Node, Prefab, screen, UITransform, view } from "cc";
+import { instantiate, isValid, Node, screen, UITransform, view } from "cc";
 import { gcoreEvent, GCoreEvent } from "../../system/event/index";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
@@ -62,12 +62,12 @@ export class MvcMgr {
 
     /** 批量注册MVC模块
      * @param params MVC参数列表
-     * @param complateCallback 单个注册完成回调
+     * @param completeCallback 单个注册完成回调
      */
-    public registerAll(params: Array<IMvcParams>, complateCallback?: (tid: number) => void) {
+    public registerAll(params: Array<IMvcParams>, completeCallback?: (tid: number) => void) {
         for (const param of params) {
             this.register(param);
-            complateCallback?.(param.tid);
+            completeCallback?.(param.tid);
         }
     }
 
@@ -80,7 +80,6 @@ export class MvcMgr {
      * @returns 视图实例句柄
      */
     public async open<K extends ViewId>(tid: K, ...args: ViewOpenArgs<IViewParamMap[K]>): Promise<IViewHandle> {
-
         // 根据类型id查找对应的MVC参数
         const mvcParams = this._paramsMap.get(tid);
         if (!mvcParams) {
@@ -88,37 +87,28 @@ export class MvcMgr {
         }
         const param = (args[0] ?? {}) as IViewParamMap[K];
 
-        // 检查是否已有实例
-        const existing = this._viewMap.get(tid);
+        // 唯一/常驻视图全程按单实例处理，复用判断与加载去重共用同一标识
+        const singleInstance = !!mvcParams.attribute?.bIsOnly || !!mvcParams.attribute?.bResident;
 
-        // 如果唯一（bIsOnly）或常驻（bResident），并且已有实例，则直接复用
-        if (mvcParams.attribute) {
-            const isOnly = !!mvcParams.attribute.bIsOnly;
-            const isResident = !!mvcParams.attribute.bResident;
-
-            if (isOnly || isResident) {
-                const existView = Array.isArray(existing) ? (existing[0] as ViewType) : (existing as ViewType);
-                if (existView) {
-                    if (existView.node && isValid(existView.node)) {
-                        // 如果被隐藏了，显示它
-                        if (!existView.node.active) {
-                            existView.node.active = true;
-                        }
-                        // 触发显示回调
-                        existView.onShow();
-                        return this._createViewHandle(tid, existView);
-                    } else {
-                        // 旧实例节点已失效，移除映射，继续创建新实例
-                        this._viewMap.delete(tid);
-                    }
+        // 唯一/常驻视图：已有有效实例则复用，不再创建
+        if (singleInstance) {
+            const existView = this._getFirstView(this._viewMap.get(tid));
+            if (existView && existView.node && isValid(existView.node)) {
+                // 若被隐藏则激活；重复 open 仍触发 onShow，供业务刷新数据
+                if (!existView.node.active) {
+                    existView.node.active = true;
                 }
+                existView.onShow();
+                return this._createViewHandle(tid, existView);
+            }
+            // 旧实例节点已失效，清除映射后重新创建
+            if (existView) {
+                this._viewMap.delete(tid);
             }
         }
 
-        // 检查是否正在加载中（仅针对单实例或常驻视图）
-        const isOnly = !!mvcParams.attribute?.bIsOnly;
-        const isResident = !!mvcParams.attribute?.bResident;
-        if (isOnly || isResident) {
+        // 唯一/常驻视图正在加载中：复用同一个 Promise，避免并发创建多个实例
+        if (singleInstance) {
             const loading = this._loadingViewMap.get(tid);
             if (loading) {
                 return loading;
@@ -127,59 +117,40 @@ export class MvcMgr {
 
         const openPromise = (async () => {
             try {
-                // 实例化界面节点
                 const view = await this._createViewNode(mvcParams, param);
                 if (!view) {
                     throw new Error(`视图组件不存在tid:${tid}, 请检查预制体是否正确`);
                 }
-
-                // 存储到视图映射表：若允许多个实例则保存数组，否则保存单实例
-                const allowMulti = !(mvcParams.attribute && (mvcParams.attribute.bIsOnly || mvcParams.attribute.bResident));
-                if (allowMulti) {
-                    const entry = this._viewMap.get(tid);
-                    if (!entry) {
-                        this._viewMap.set(tid, [view]);
-                    } else if (Array.isArray(entry)) {
-                        entry.push(view);
-                    } else {
-                        // 将原有单实例转为数组
-                        this._viewMap.set(tid, [entry as ViewType, view]);
-                    }
-                } else {
-                    this._viewMap.set(tid, view);
-                }
-
+                this._storeView(tid, view, mvcParams);
                 // 发送打开视图事件
                 gcoreEvent.emit(GCoreEvent.MVC_EVENT.OPEN_VIEW, tid, view);
-
                 return this._createViewHandle(tid, view);
             } finally {
                 // 无论成功失败，都从加载中映射表移除
-                if (isOnly || isResident) {
+                if (singleInstance) {
                     this._loadingViewMap.delete(tid);
                 }
             }
         })();
 
-        if (isOnly || isResident) {
+        if (singleInstance) {
             this._loadingViewMap.set(tid, openPromise);
         }
-
         return openPromise;
     }
 
-    /** 关闭视图，常驻视图仅隐藏，非常驻视图销毁节点
+    /** 关闭视图，默认常驻视图隐藏、非常驻视图销毁；destroy=true 时强制销毁（含常驻视图）
      * @param tid 类型id
-     * @param destroy 是否销毁（常驻节点无效）
      * @param iid 实例id，指定关闭多实例中的某个
+     * @param destroy 是否强制销毁，默认false
      */
     public close(tid: number, iid?: number, destroy?: boolean): void {
         const entry = this._viewMap.get(tid);
         if (!entry) return;
 
         const mvcParams = this._paramsMap.get(tid);
-        // 判断是否为常驻视图
-        const isResident = !!mvcParams?.attribute?.bResident;
+        // 仅常驻视图且未强制销毁时隐藏节点，其余情况均销毁
+        const hideOnly = !!mvcParams?.attribute?.bResident && destroy !== true;
 
         /** 关闭单个视图的内部逻辑 */
         const closeOne = (v: ViewType) => {
@@ -187,11 +158,11 @@ export class MvcMgr {
             if (!isValid(v.node)) return;
             // 发送关闭视图事件
             gcoreEvent.emit(GCoreEvent.MVC_EVENT.CLOSE_VIEW, tid, v);
-            if (isResident) {
+            if (hideOnly) {
                 // 常驻视图仅隐藏节点
                 v.node.active = false;
             } else {
-                // 非常驻视图销毁节点
+                // 非常驻视图或强制销毁时销毁节点
                 v.node.destroy();
             }
         };
@@ -204,14 +175,18 @@ export class MvcMgr {
                 if (idx >= 0) {
                     const v = entry[idx];
                     closeOne(v);
-                    entry.splice(idx, 1);
+                    if (!hideOnly) {
+                        entry.splice(idx, 1);
+                    }
                 }
             } else {
                 // 关闭所有同类型实例
                 for (const v of entry) {
                     closeOne(v);
                 }
-                this._viewMap.delete(tid);
+                if (!hideOnly) {
+                    this._viewMap.delete(tid);
+                }
             }
             // 如果数组清空则删除映射
             if (entry.length === 0) {
@@ -227,8 +202,8 @@ export class MvcMgr {
             return;
         }
         closeOne(v);
-        // 非常驻视图从映射表中移除
-        if (!isResident) {
+        // 隐藏时保留映射以便复用，销毁时从映射表移除
+        if (!hideOnly) {
             this._viewMap.delete(tid);
         }
     }
@@ -323,6 +298,37 @@ export class MvcMgr {
 
     /****************  私有方法  ****************/
 
+    /** 取映射表中的首个视图实例，兼容单实例与多实例数组两种存储形式
+     * @param entry 视图映射表条目
+     * @returns 首个视图实例，无实例时返回null
+     */
+    private _getFirstView(entry: ViewType | ViewType[] | undefined): ViewType | null {
+        if (!entry) return null;
+        return Array.isArray(entry) ? (entry[0] ?? null) : entry;
+    }
+
+    /** 将视图实例写入映射表：允许多实例时保存为数组，否则覆盖单实例
+     * @param tid 视图类型id
+     * @param view 视图实例
+     * @param mvcParams MVC参数
+     */
+    private _storeView(tid: number, view: ViewType, mvcParams: IMvcParams): void {
+        const allowMulti = !mvcParams.attribute?.bIsOnly && !mvcParams.attribute?.bResident;
+        if (!allowMulti) {
+            this._viewMap.set(tid, view);
+            return;
+        }
+        const entry = this._viewMap.get(tid);
+        if (!entry) {
+            this._viewMap.set(tid, [view]);
+        } else if (Array.isArray(entry)) {
+            entry.push(view);
+        } else {
+            // 将原有单实例转为数组
+            this._viewMap.set(tid, [entry, view]);
+        }
+    }
+
     /** 创建视图节点，加载预制体并实例化
      * @param mvcParams MVC参数
      * @param viewParams 视图参数
@@ -338,20 +344,12 @@ export class MvcMgr {
             return null;
         }
 
-        // 实例化预制体，创建新的节点
+        // 实例化预制体，挂载前完成屏幕适配，确保 onEnable 时节点尺寸已正确
         const newNode = instantiate(prefab);
-
-        // 设置新节点的父节点为根节点
-        newNode.setParent(this._params.root);
-
-        // 如果需要适配，则设置节点大小为父节点大小
         if (mvcParams.attribute?.bIsdaptation) {
-            const uit = newNode.getComponent(UITransform);
-            const parentUIT = this._params.root.getComponent(UITransform);
-            if (uit && parentUIT) {
-                uit.setContentSize(parentUIT.width, parentUIT.height);
-            }
+            this._adaptation(newNode);
         }
+        newNode.setParent(this._params.root);
 
         // 初始化View组件
         const view = this._initViewNode(newNode, mvcParams, viewParams);
@@ -392,11 +390,6 @@ export class MvcMgr {
 
         // 初始化视图，注入tid、iid、控制器、数据模型和参数
         view.onInit(tid, this._getIid(), ctrl, model, viewParams || {});
-
-        // 如果需要适配，执行适配逻辑
-        if (mvcParams.attribute?.bIsdaptation) {
-            this._adaptation(view.node);
-        }
 
         // 依次触发视图打开和显示回调
         view.onOpen();

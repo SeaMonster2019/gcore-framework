@@ -40,7 +40,7 @@ mvc/
 | `close` | 关闭当前视图的方法 |
 | `onInit(tid, iid, ctrl, model, params)` | 初始化视图，由框架自动调用 |
 | `onOpen()` | 视图打开回调 |
-| `onRefresh()` | 视图刷新回调（复用已有实例时触发） |
+| `onShow()` | 视图显示回调（首次打开与复用已有实例时都会触发） |
 | `onBtnClose()` | 关闭按钮点击事件（protected） |
 | `getTid()` | 获取类型 id |
 | `getIid()` | 获取实例 id |
@@ -66,7 +66,7 @@ mvc/
 | `register(params)` | 注册单个 MVC 模块 |
 | `registerAll(params[], callback?)` | 批量注册 MVC 模块 |
 | `open(tid, ...args)` | 打开视图，参数类型由 `IViewParamMap` 自动推断，返回 `IViewHandle` |
-| `close(tid, destroy?, iid?)` | 关闭视图 |
+| `close(tid, iid?, destroy?)` | 关闭视图，destroy=true 强制销毁（含常驻视图），否则常驻隐藏、非常驻销毁 |
 | `closeAll(destroy, excludeTids?)` | 关闭所有视图 |
 | `getView(tid, iid?)` | 获取视图实例 |
 | `getViews(tid)` | 获取所有同类型视图实例 |
@@ -191,9 +191,9 @@ export class MainMenuView extends BaseView<IMainMenuViewParams> {
         // 视图打开时的逻辑
     }
 
-    /** 视图刷新回调（复用时触发） */
-    onRefresh(): void {
-        // 视图被刷新时的逻辑
+    /** 视图显示回调（首次打开与复用时均触发） */
+    onShow(): void {
+        // 视图显示时的逻辑
     }
 }
 ```
@@ -290,8 +290,8 @@ handle.close();
 // 按类型 id 关闭
 gcore.mvc.close(EModule.MainMenu);
 
-// 关闭时销毁节点
-gcore.mvc.close(EModule.MainMenu, true);
+// 强制销毁节点（常驻视图也会销毁）
+gcore.mvc.close(EModule.MainMenu, undefined, true);
 
 // 关闭所有视图（可排除指定模块）
 gcore.mvc.closeAll(true, [EModule.MainMenu]);
@@ -353,7 +353,7 @@ declare module "gcore" {
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `priority` | number | - | 同层级下的渲染优先度，值越大越优先 |
-| `bIsOnly` | boolean | false | 唯一实例，重复 open 时会复用已有实例并触发 `onRefresh` |
+| `bIsOnly` | boolean | false | 唯一实例，重复 open 时会复用已有实例并触发 `onShow` |
 | `bResident` | boolean | false | 常驻节点，close 时仅隐藏不销毁（必须配合 `bIsOnly: true`） |
 | `bIsdaptation` | boolean | false | 是否适配屏幕，开启后视图会自动适配可见区域大小 |
 
@@ -366,11 +366,11 @@ register()
 
 open()
   ├── 检查是否已有实例（bIsOnly / bResident）
-  │   └── 若有 → 显示节点 → View.onRefresh() → 返回句柄
+  │   └── 若有 → 显示节点 → View.onShow() → 返回句柄
   ├── 加载 Prefab → 实例化节点
   ├── View.onInit(tid, iid, ctrl, model, params)
   ├── View.onOpen()
-  └── View.onRefresh()
+  └── View.onShow()
 
 close()
   ├── bResident → node.active = false（隐藏）
