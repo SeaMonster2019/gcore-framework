@@ -1,6 +1,62 @@
 import { assetManager, Component, SpriteFrame } from "cc";
 import { EDITOR } from "cc/env";
 
+/**
+ * 解析标准 CSV 内容为行字段数组
+ * 支持双引号包裹字段内的换行、逗号以及双写引号转义（Luban 多行文本）
+ * @param content CSV 文件文本
+ * @returns 每行字段数组
+ */
+export function parseCsvRows(content: string): string[][] {
+    const text = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+
+        if (inQuotes) {
+            if (ch === '"') {
+                if (text[i + 1] === '"') {
+                    field += '"';
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
+            } else if (ch === '\r') {
+                if (text[i + 1] === '\n') i++;
+                field += '\n';
+            } else {
+                field += ch;
+            }
+            continue;
+        }
+
+        if (ch === '"' && field === "") {
+            inQuotes = true;
+        } else if (ch === ',') {
+            row.push(field);
+            field = "";
+        } else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field);
+            rows.push(row);
+            row = [];
+            field = "";
+        } else {
+            field += ch;
+        }
+    }
+
+    if (row.length > 0 || field !== "") {
+        row.push(field);
+        rows.push(row);
+    }
+    return rows;
+}
+
 /** 树形菜单节点结构接口 */
 interface MenuTreeNode {
     /** 当前层级的路径节点段名 (如 "cc") */
@@ -105,19 +161,20 @@ export class I18nEditorUtil {
             for (const file of files) {
                 const filePath = path.join(csvDir, file);
                 const content = fs.readFileSync(filePath, 'utf-8');
-                const lines = content.split(/\r?\n/);
-                if (lines.length < 2) continue;
+                // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
+                const rows = parseCsvRows(content);
+                if (rows.length < 2) continue;
 
                 let varLineIndex = -1;
-                for (let i = 0; i < Math.min(lines.length, 10); i++) {
-                    if (lines[i].startsWith('##var')) {
+                for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                    if ((rows[i][0] ?? '').trim().startsWith('##var')) {
                         varLineIndex = i;
                         break;
                     }
                 }
                 if (varLineIndex === -1) continue;
 
-                const headerCols = lines[varLineIndex].split(',').map((s: string) => s.trim());
+                const headerCols = rows[varLineIndex].map((s: string) => s.trim());
                 const keyColIndex = headerCols.indexOf('key');
                 if (keyColIndex === -1) continue;
 
@@ -131,11 +188,10 @@ export class I18nEditorUtil {
                 }
                 if (langColIndex === -1) continue;
 
-                for (let i = varLineIndex + 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line || line.startsWith('##')) continue;
+                for (let i = varLineIndex + 1; i < rows.length; i++) {
+                    const rowCols = rows[i];
+                    if ((rowCols[0] ?? '').trim().startsWith('##')) continue;
 
-                    const rowCols = line.split(',');
                     const key = (rowCols[keyColIndex] ?? '').trim();
                     if (!key) continue;
 

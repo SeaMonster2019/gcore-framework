@@ -2,6 +2,7 @@ import { BufferAsset } from "cc";
 import { EDITOR } from "cc/env";
 import { GCoreEvent, gcoreEvent } from "../../system/event";
 import ByteBuf from "./base/ByteBuf";
+import { parseCsvRows } from "./editor/i18n-editor-util";
 
 /** 程序本地化表管理器 */
 export class I18nMgr {
@@ -268,19 +269,20 @@ export class I18nMgr {
             for (const file of files) {
                 const filePath = path.join(csvDir, file);
                 const content = fs.readFileSync(filePath, 'utf-8');
-                const lines = content.split(/\r?\n/);
-                if (lines.length < 2) continue;
+                // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
+                const rows = parseCsvRows(content);
+                if (rows.length < 2) continue;
 
                 let varLineIndex = -1;
-                for (let i = 0; i < Math.min(lines.length, 10); i++) {
-                    if (lines[i].startsWith('##var')) {
+                for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                    if ((rows[i][0] ?? '').trim().startsWith('##var')) {
                         varLineIndex = i;
                         break;
                     }
                 }
                 if (varLineIndex === -1) continue;
 
-                const headerCols = lines[varLineIndex].split(',').map((s: string) => s.trim());
+                const headerCols = rows[varLineIndex].map((s: string) => s.trim());
                 const keyColIndex = headerCols.indexOf('key');
                 if (keyColIndex === -1) continue;
 
@@ -295,11 +297,10 @@ export class I18nMgr {
                 }
                 if (langColIndex === -1) continue;
 
-                for (let i = varLineIndex + 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line || line.startsWith('##')) continue;
+                for (let i = varLineIndex + 1; i < rows.length; i++) {
+                    const rowCols = rows[i];
+                    if ((rowCols[0] ?? '').trim().startsWith('##')) continue;
 
-                    const rowCols = line.split(',');
                     const key = (rowCols[keyColIndex] ?? '').trim();
                     if (!key) continue;
 
