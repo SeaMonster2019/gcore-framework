@@ -59,6 +59,11 @@ export class GCoreConsoleView extends Component implements IConsoleView {
     public static readonly BTN_KEY_HISTORY_PREV = "history_prev";
     /** 按钮标识：下一条历史 */
     public static readonly BTN_KEY_HISTORY_NEXT = "history_next";
+    /** 按钮标识前缀：候选项点击，后接行下标（如 candidate_0），由预制体 clickEvents 的 customEventData 配置 */
+    public static readonly BTN_KEY_CANDIDATE_PREFIX = "candidate_";
+
+    /** 候选项单行最大字符数（含箭头/名称/描述），超出部分截断并以省略号结尾，避免多行项换行后被固定行高挤压 */
+    public static readonly CANDIDATE_MAX_CHARS = 32;
 
     /****************  编辑器绑定  ****************/
 
@@ -130,6 +135,8 @@ export class GCoreConsoleView extends Component implements IConsoleView {
     private _candidates: IConsoleCommand[] = [];
     /** 当前选中的候选项下标（默认第一项） */
     private _candidateIndex: number = 0;
+    /** 候选框是否处于展开状态（与候选数据分离：隐藏时保留数据，便于点击候选项回填） */
+    private _candidatePanelVisible: boolean = false;
     /** 输入框是否处于编辑中 */
     private _isEditing: boolean = false;
     /** 代码回填输入框时跳过一次文本变化处理，避免递归触发检索 */
@@ -581,6 +588,9 @@ export class GCoreConsoleView extends Component implements IConsoleView {
             editNode.on(EditBox.EventType.EDITING_DID_ENDED, this._onEditEnded, this);
             editNode.on(EditBox.EventType.EDITING_RETURN, this._onEditReturn, this);
         }
+        for (const label of this.candidateLabels) {
+            label?.node.on(Node.EventType.TOUCH_START, this._onCandidateTouchStart, this);
+        }
         // EditBox 不派发方向键事件，上下切换候选项需要监听全局键盘
         input.on(Input.EventType.KEY_DOWN, this._onKeyDown, this);
         // EditBox 聚焦时 Web 端会把按键交给原生 input，引擎的全局 KEY_DOWN 收不到，
@@ -600,6 +610,9 @@ export class GCoreConsoleView extends Component implements IConsoleView {
             editNode.off(EditBox.EventType.EDITING_DID_ENDED, this._onEditEnded, this);
             editNode.off(EditBox.EventType.EDITING_RETURN, this._onEditReturn, this);
         }
+        for (const label of this.candidateLabels) {
+            label?.node.off(Node.EventType.TOUCH_START, this._onCandidateTouchStart, this);
+        }
     }
 
     /****************  私有方法：候选检索框  ****************/
@@ -607,12 +620,15 @@ export class GCoreConsoleView extends Component implements IConsoleView {
     /** 输入框开始编辑 */
     private _onEditBegan(): void {
         this._isEditing = true;
+        this.unschedule(this._hideCandidatesAfterEditEnd);
     }
 
     /** 输入框结束编辑 */
     private _onEditEnded(): void {
         this._isEditing = false;
-        this._hideCandidates();
+        // 延后一帧收起：候选项按钮的点击事件在输入框失焦后才派发，不能提前隐藏候选面板
+        this.unschedule(this._hideCandidatesAfterEditEnd);
+        this.scheduleOnce(this._hideCandidatesAfterEditEnd, 0);
         // 回车提交会让输入框失焦（并收起键盘），这里重新聚焦以便连续输入指令
         // 只有紧跟在回车之后的失焦才重新聚焦，避免抢走用户主动切换到其它控件的焦点
         if (Date.now() - this._lastReturnTime <= GCoreConsoleView.REFOCUS_WINDOW_MS) {
@@ -625,12 +641,20 @@ export class GCoreConsoleView extends Component implements IConsoleView {
         }
     }
 
+    /** 输入框失焦后的延迟收起回调 */
+    private _hideCandidatesAfterEditEnd = (): void => {
+        if (!this._isEditing) {
+            this._hideCandidates();
+        }
+    };
+
     /** 输入框回车：候选展开时先确认选中项（补全指令名），否则提交输入
      * 用回车而非空格确认，避免"输入空格写参数"与"确认补全"两种语义互相打架
      */
     private _onEditReturn(): void {
+        // 仅候选框展开时才用候选数据确认；收起状态即使保留着旧候选也不得误补全
         // 已经完整输入了指令名（与选中候选同名）时，回车应当直接执行，而不是再补一次全名
-        const selected = this._candidates[this._candidateIndex];
+        const selected = this._candidatePanelVisible ? this._candidates[this._candidateIndex] : undefined;
         const typed = (this.inputEditBox?.string ?? "").trim();
         if (selected && selected.name !== typed) {
             this._confirmCandidate();
@@ -728,7 +752,7 @@ export class GCoreConsoleView extends Component implements IConsoleView {
      * @param offset -1 为上一项，1 为下一项
      */
     private _handleArrowKey(offset: number): void {
-        if (!this.node.active || this._candidates.length === 0) {
+        if (!this.node.active || !this._candidatePanelVisible || this._candidates.length === 0) {
             return;
         }
         this._moveCandidate(offset);
@@ -793,6 +817,8 @@ export class GCoreConsoleView extends Component implements IConsoleView {
             : [];
         // 每次输入新内容都把选中项调整为第一项
         this._candidateIndex = 0;
+        // 有新候选才展开候选框
+        this._candidatePanelVisible = this._candidates.length > 0;
         this._refreshCandidatePanel();
     }
 
@@ -810,21 +836,47 @@ export class GCoreConsoleView extends Component implements IConsoleView {
 
     /** 确认当前选中项，把完整指令名回填到输入框 */
     private _confirmCandidate(): void {
-        if (this._candidates.length === 0) {
+        this._confirmCandidateAt(this._candidateIndex);
+    }
+
+    /** 确认指定下标的候选项，把完整指令名回填到输入框（供候选项点击调用）
+     * @param index 候选项下标
+     */
+    private _confirmCandidateAt(index: number): void {
+        if (!this._candidatePanelVisible) {
             return;
         }
-        const command = this._candidates[this._candidateIndex];
+        const command = this._candidates[index];
         if (!command) {
             return;
         }
         this._hideCandidates();
         // 回填指令名并补一个空格，方便继续输入参数；回填的文本变化不再触发检索
         this._setInputText(`${command.name} `);
+        // 点击候选项时输入框已失焦，回填后重新聚焦以便继续输入参数
+        this.focusInput();
     }
 
-    /** 关闭候选检索框并清空候选 */
+    /** 候选行触摸开始时直接回填，确保输入框失焦前完成修改 */
+    private _onCandidateTouchStart(event: EventTouch): void {
+        const index = this.candidateLabels.findIndex((label) => label?.node === event.currentTarget);
+        if (index >= 0) {
+            this._confirmCandidateAt(index);
+        }
+    }
+
+    /** 把候选项展示文本截断为单行，避免过长的描述换行后被固定行高挤压
+     * @param text 原始展示文本（含选中箭头与指令描述）
+     * @returns 单行文本，超出上限部分以省略号结尾
+     */
+    private _truncateCandidateText(text: string): string {
+        const max = GCoreConsoleView.CANDIDATE_MAX_CHARS;
+        return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+    }
+
+    /** 收起候选检索框（保留候选数据，便于失焦后点击候选项仍能回填；下次输入会重新检索覆盖） */
     private _hideCandidates(): void {
-        this._candidates.length = 0;
+        this._candidatePanelVisible = false;
         this._candidateIndex = 0;
         this._refreshCandidatePanel();
     }
@@ -832,7 +884,7 @@ export class GCoreConsoleView extends Component implements IConsoleView {
     /** 刷新候选检索框的显示内容与高亮项 */
     private _refreshCandidatePanel(): void {
         const panel = this.candidatePanel;
-        const showing = this._candidates.length > 0;
+        const showing = this._candidatePanelVisible && this._candidates.length > 0;
         if (panel) {
             panel.active = showing;
         }
@@ -849,7 +901,8 @@ export class GCoreConsoleView extends Component implements IConsoleView {
             }
             // 选中的候选项加箭头标记并使用高亮色，其余使用常规色
             const selected = i === this._candidateIndex;
-            label.string = `${selected ? "> " : "  "}${command.name}  ${command.desc ?? ""}`;
+            const text = this._truncateCandidateText(`${selected ? "> " : "  "}${command.name}  ${command.desc ?? ""}`);
+            label.string = text;
             label.color = selected ? this.candidateHighlightColor : this.candidateNormalColor;
         }
     }
@@ -879,6 +932,13 @@ export class GCoreConsoleView extends Component implements IConsoleView {
                 this._fillHistoryByButton(1);
                 break;
             default:
+                // 候选项点击：customEventData 形如 candidate_0，解析出行下标后回填对应指令
+                if (key && key.startsWith(GCoreConsoleView.BTN_KEY_CANDIDATE_PREFIX)) {
+                    const index = Number(key.substring(GCoreConsoleView.BTN_KEY_CANDIDATE_PREFIX.length));
+                    if (Number.isInteger(index)) {
+                        this._confirmCandidateAt(index);
+                    }
+                }
                 break;
         }
     }
