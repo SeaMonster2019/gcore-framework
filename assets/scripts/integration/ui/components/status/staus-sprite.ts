@@ -9,9 +9,9 @@ const { ccclass, property, menu, executeInEditMode } = _decorator;
 @executeInEditMode
 export class StatusSprite extends Component {
 
-    /** 状态精灵帧列表，数组下标即状态值 */
-    @property({ type: [SpriteFrame], displayName: "状态图片", tooltip: "下标即状态值，setStatus 时切换到对应图片" })
-    public spriteFrames: SpriteFrame[] = [];
+    /** 状态精灵帧列表，数组下标即状态值；元素可留空，该状态隐藏目标 Sprite */
+    @property({ type: [SpriteFrame], displayName: "状态图片", tooltip: "下标即状态值；可留空，切换该状态时隐藏目标 Sprite" })
+    public spriteFrames: Array<SpriteFrame | null> = [];
 
     /** 目标 Sprite，未绑定时挂载阶段尝试绑定自身节点的 Sprite */
     @property({ type: Sprite, displayName: "目标Sprite", tooltip: "已手动绑定时不会被改绑" })
@@ -66,7 +66,7 @@ export class StatusSprite extends Component {
     public setStatus(status: number): void {
         // 不允许越界时保持当前显示与状态值，直接抛出错误
         if (!this._isValidStatus(status) && !this.allowOutOfRange) {
-            throw new Error(`[StatusSprite] 状态 ${status} 超出范围 [0, ${this.spriteFrames.length - 1}] 或对应精灵帧未绑定`);
+            throw new Error(`[StatusSprite] 状态 ${status} 超出范围 [0, ${this.spriteFrames.length - 1}]`);
         }
         if (!this._applyStatus(status)) {
             return;
@@ -83,15 +83,14 @@ export class StatusSprite extends Component {
 
     /****************  私有方法  ****************/
 
-    /** 判断状态值是否可用
+    /** 判断状态值是否可用，数组下标在范围内即有效，元素允许为空
      * @param status 状态值
      * @returns 是否为有效状态
      */
     private _isValidStatus(status: number): boolean {
         return Number.isInteger(status)
             && status >= 0
-            && status < this.spriteFrames.length
-            && !!this.spriteFrames[status];
+            && status < this.spriteFrames.length;
     }
 
     /** 按状态值刷新 Sprite 显示，越界时清空帧并关闭渲染
@@ -112,7 +111,7 @@ export class StatusSprite extends Component {
             this.sprite.enabled = true;
             this.sprite.spriteFrame = frame;
         } else {
-            // 越界时清空精灵帧并关闭渲染，不显示任何东西
+            // 越界或该状态未绑定精灵帧时清空精灵帧并关闭渲染，不显示任何东西
             this.sprite.spriteFrame = null;
             this.sprite.enabled = false;
         }

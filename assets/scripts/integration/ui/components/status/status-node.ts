@@ -9,9 +9,9 @@ const { ccclass, property, menu, executeInEditMode } = _decorator;
 @executeInEditMode
 export class StatusNode extends Component {
 
-    /** 状态节点列表，数组下标即状态值 */
-    @property({ type: [Node], displayName: "状态节点", tooltip: "下标即状态值，setStatus 时仅显示对应节点" })
-    public statusNodes: Node[] = [];
+    /** 状态节点列表，数组下标即状态值；元素可留空，该状态隐藏所有节点 */
+    @property({ type: [Node], displayName: "状态节点", tooltip: "下标即状态值；可留空，切换该状态时隐藏所有节点" })
+    public statusNodes: Array<Node | null> = [];
 
     /** 是否允许越界状态，false 时越界抛错且不切换 */
     @property({ displayName: "允许越界", tooltip: "true 时越界状态隐藏所有节点；false 时越界抛错并保持当前状态" })

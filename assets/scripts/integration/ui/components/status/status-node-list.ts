@@ -7,9 +7,9 @@ const { ccclass, property, menu, executeInEditMode } = _decorator;
 @ccclass("StatusNodeGroup")
 export class StatusNodeGroup {
 
-    /** 该状态下需要同时显示的节点 */
-    @property({ type: [Node], displayName: "节点列表", tooltip: "该状态下同时 active 的节点" })
-    public nodes: Node[] = [];
+    /** 该状态下需要同时显示的节点，元素可留空 */
+    @property({ type: [Node], displayName: "节点列表", tooltip: "该状态下同时 active 的节点，可留空" })
+    public nodes: Array<Node | null> = [];
 
 }
 
@@ -19,9 +19,9 @@ export class StatusNodeGroup {
 @executeInEditMode
 export class StatusNodeList extends Component {
 
-    /** 状态分组列表，数组下标即状态值 */
-    @property({ type: [StatusNodeGroup], displayName: "状态分组", tooltip: "下标即状态值，每组可绑定多个同时 active 的节点" })
-    public statusNodeGroups: StatusNodeGroup[] = [];
+    /** 状态分组列表，数组下标即状态值；元素可留空，该状态隐藏所有节点 */
+    @property({ type: [StatusNodeGroup], displayName: "状态分组", tooltip: "下标即状态值；可留空，切换该状态时隐藏所有节点" })
+    public statusNodeGroups: Array<StatusNodeGroup | null> = [];
 
     /** 是否允许越界状态，false 时越界抛错且不切换 */
     @property({ displayName: "允许越界", tooltip: "true 时越界状态隐藏所有节点；false 时越界抛错并保持当前状态" })
