@@ -233,6 +233,8 @@ module.exports = Editor.Panel.define({
         projectRootDir: '#project-root-dir',
         projectRootBtn: '#project-root-btn',
         projectRootClearBtn: '#project-root-clear-btn',
+        settingsLangConfFile: '#settings-lang-conf-file',
+        settingsLangConfBtn: '#settings-lang-conf-btn',
     },
     methods: {
     },

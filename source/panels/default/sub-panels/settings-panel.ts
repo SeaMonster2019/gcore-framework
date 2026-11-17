@@ -1,4 +1,5 @@
 import { pickPath, queryElement } from '../common/dom-util';
+import { normalizePathForStorage } from '../common/path-util';
 import { StorageMgr } from '../common/storage-mgr';
 import { PanelContext } from '../common/types';
 
@@ -8,6 +9,8 @@ export class SettingsPanel {
     private projectRootDirInp: HTMLInputElement | null = null;
     private projectRootBtn: HTMLButtonElement | null = null;
     private projectRootClearBtn: HTMLButtonElement | null = null;
+    private langConfFileInp: HTMLInputElement | null = null;
+    private langConfBtn: HTMLButtonElement | null = null;
 
     constructor(context: PanelContext) {
         this.context = context;
@@ -24,6 +27,8 @@ export class SettingsPanel {
         this.projectRootDirInp = (panel.$ && panel.$.projectRootDir) || queryElement<HTMLInputElement>(panel, '#project-root-dir');
         this.projectRootBtn = (panel.$ && panel.$.projectRootBtn) || queryElement<HTMLButtonElement>(panel, '#project-root-btn');
         this.projectRootClearBtn = (panel.$ && panel.$.projectRootClearBtn) || queryElement<HTMLButtonElement>(panel, '#project-root-clear-btn');
+        this.langConfFileInp = (panel.$ && panel.$.settingsLangConfFile) || queryElement<HTMLInputElement>(panel, '#settings-lang-conf-file');
+        this.langConfBtn = (panel.$ && panel.$.settingsLangConfBtn) || queryElement<HTMLButtonElement>(panel, '#settings-lang-conf-btn');
 
         // 应用初始状态（首次打开若未设置，则自动通过编辑器 API 识别并填入当前工程根目录）
         let initialRoot = (state.projectRootDir || '').trim();
@@ -84,6 +89,51 @@ export class SettingsPanel {
                 }
                 StorageMgr.saveState({ projectRootDir: '' }, workspace);
                 appendLog('[工具设置] 已清除工程根目录的持久化数据！重新打开面板即可测试自动识别。', 'info');
+            });
+        }
+
+        // 多语言 luban.conf 路径：与多语言分面板共用同一份状态
+        if (this.langConfFileInp) {
+            this.langConfFileInp.value = state.langConfFile || '';
+        }
+
+        const applyLangConfFile = (val: string): void => {
+            StorageMgr.saveState({ langConfFile: val }, workspace);
+            const langTabInput = queryElement<HTMLInputElement>(panel, '#lang-conf-file');
+            if (langTabInput) {
+                langTabInput.value = val;
+            }
+            (globalThis as any).Editor?.Message?.send?.('gcore-framework', 'reloadCsvData');
+            appendLog(`已更新多语言 luban.conf 配置: ${val || '(未设置)'}`, 'success');
+        };
+
+        if (this.langConfFileInp) {
+            this.langConfFileInp.addEventListener('change', () => {
+                applyLangConfFile(normalizePathForStorage(this.langConfFileInp!.value, workspace));
+            });
+        }
+
+        if (this.langConfBtn) {
+            this.langConfBtn.addEventListener('click', async () => {
+                try {
+                    const defaultPath = (this.langConfFileInp && this.langConfFileInp.value.trim()) || workspace;
+                    const picked = await pickPath(
+                        '选择多语言 luban.conf 文件',
+                        defaultPath,
+                        'file',
+                        workspace,
+                        [{ name: 'Luban Conf', extensions: ['conf', 'json'] }]
+                    );
+                    if (picked) {
+                        const val = normalizePathForStorage(picked, workspace);
+                        if (this.langConfFileInp) {
+                            this.langConfFileInp.value = val;
+                        }
+                        applyLangConfFile(val);
+                    }
+                } catch (e: any) {
+                    appendLog(`选择多语言 luban.conf 失败: ${e?.message ?? String(e)}`, 'error');
+                }
             });
         }
     }

@@ -2,7 +2,7 @@ import { BufferAsset } from "cc";
 import { EDITOR } from "cc/env";
 import { GCoreEvent, gcoreEvent } from "../../system/event";
 import ByteBuf from "./base/ByteBuf";
-import { parseCsvRows } from "./editor/i18n-editor-util";
+import { parseCsvRows, resolveI18nCsvFiles } from "./editor/i18n-editor-util";
 
 /** 程序本地化表管理器 */
 export class I18nMgr {
@@ -15,6 +15,8 @@ export class I18nMgr {
     private _editorTextMap: { [key: string]: string } = {};
     /** 编辑器模式下上次加载的预览语言 */
     private _editorPreviewLang = "";
+    /** 编辑器模式下上次加载的 luban.conf 路径 */
+    private _editorConfFile = "";
     /** 编辑器模式下 CSV 是否已载入 */
     private _editorCsvLoaded = false;
 
@@ -199,6 +201,7 @@ export class I18nMgr {
         this._textMap = {};
         this._editorTextMap = {};
         this._editorPreviewLang = "";
+        this._editorConfFile = "";
         this._editorCsvLoaded = false;
     }
 
@@ -225,8 +228,9 @@ export class I18nMgr {
                 return;
             }
 
-            // 读取选中的预览语言（优先从 temp/gcore-lang-state.json 读取）
+            // 读取选中的预览语言与 luban.conf 路径（优先从 temp/gcore-lang-state.json 读取）
             let previewLang = 'zh-Hans';
+            let langConfFile = '';
             const stateFile = path.join(workspace, 'temp', 'gcore-lang-state.json');
             if (fs.existsSync(stateFile)) {
                 try {
@@ -235,14 +239,21 @@ export class I18nMgr {
                     if (stateJson && stateJson.previewLang) {
                         previewLang = stateJson.previewLang;
                     }
+                    if (stateJson && typeof stateJson.langConfFile === 'string') {
+                        langConfFile = stateJson.langConfFile;
+                    }
                 } catch (e) {}
             }
 
-            // 若预览语言变动或未曾载入，重载 CSV 数据并通知全场景组件刷新
-            const isLangChanged = (this._editorPreviewLang !== previewLang);
-            if (isLangChanged || !this._editorCsvLoaded || forceEmit) {
+            // 预览语言、luban.conf 路径变动或未曾载入时，重载 CSV 数据并通知全场景组件刷新
+            const needReload = (this._editorPreviewLang !== previewLang)
+                || (this._editorConfFile !== langConfFile)
+                || !this._editorCsvLoaded
+                || forceEmit;
+            if (needReload) {
                 this._editorPreviewLang = previewLang;
-                this._loadEditorCsvData(previewLang, fs, path, workspace);
+                this._editorConfFile = langConfFile;
+                this._loadEditorCsvData(previewLang, langConfFile, fs, path, workspace);
                 this._sendEvent();
             }
         } catch (e) {
@@ -250,24 +261,19 @@ export class I18nMgr {
         }
     }
 
-    /** 编辑器模式下直接解析 CSV 多语言配置
+    /** 编辑器模式下直接解析 luban.conf 声明的 CSV 多语言配置
      * @param previewLang 预览语言代码
+     * @param confFile luban.conf 路径
      * @param fs Node.js fs 模块
      * @param path Node.js path 模块
      * @param workspace 工作区根路径
      */
-    private _loadEditorCsvData(previewLang: string, fs: any, path: any, workspace: string): void {
+    private _loadEditorCsvData(previewLang: string, confFile: string, fs: any, path: any, workspace: string): void {
         try {
-            const csvDir = path.join(workspace, 'design/配置/多语言/配置');
-            if (!fs.existsSync(csvDir)) {
-                return;
-            }
-
-            const files = fs.readdirSync(csvDir).filter((f: string) => f.endsWith('.csv'));
+            const files = resolveI18nCsvFiles(fs, path, workspace, confFile);
             const newMap: { [key: string]: string } = {};
 
-            for (const file of files) {
-                const filePath = path.join(csvDir, file);
+            for (const filePath of files) {
                 const content = fs.readFileSync(filePath, 'utf-8');
                 // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
                 const rows = parseCsvRows(content);

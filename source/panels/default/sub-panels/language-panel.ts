@@ -53,11 +53,20 @@ export class LanguagePanel {
         // 应用初始状态
         if (this.langConfFileInp) this.langConfFileInp.value = state.langConfFile;
 
+        // luban.conf 路径变更时同步设置面板并刷新编辑器预览
+        const applyLangConfFile = (val: string): void => {
+            StorageMgr.saveState({ langConfFile: val }, workspace);
+            const settingsInput = queryElement<HTMLInputElement>(panel, '#settings-lang-conf-file');
+            if (settingsInput) {
+                settingsInput.value = val;
+            }
+            Editor.Message.send('gcore-framework', 'reloadCsvData');
+        };
+
         // 绑定路径输入事件
         if (this.langConfFileInp) {
             this.langConfFileInp.addEventListener('input', () => {
-                const val = normalizePathForStorage(this.langConfFileInp!.value, workspace);
-                StorageMgr.saveState({ langConfFile: val }, workspace);
+                applyLangConfFile(normalizePathForStorage(this.langConfFileInp!.value, workspace));
             });
         }
 
@@ -68,7 +77,7 @@ export class LanguagePanel {
             '选择多语言 luban.conf 文件',
             'file',
             workspace,
-            (val) => StorageMgr.saveState({ langConfFile: val }, workspace),
+            (val) => applyLangConfFile(val),
             appendLog,
             [{ name: 'Luban Conf', extensions: ['conf', 'json'] }]
         );

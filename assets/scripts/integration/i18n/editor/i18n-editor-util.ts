@@ -57,6 +57,118 @@ export function parseCsvRows(content: string): string[][] {
     return rows;
 }
 
+/** 解析 luban.conf：Luban 允许数组/对象末尾的多余逗号，标准 JSON.parse 不接受
+ * @param text 配置文件文本
+ * @returns 配置对象
+ */
+function parseLubanConf(text: string): any {
+    return JSON.parse(text.replace(/^\uFEFF/, "").replace(/,\s*([}\]])/g, "$1"));
+}
+
+/** 从 luban.conf 的 schema 元配置中解析多语言 CSV 源文件绝对路径
+ * @param fs Node.js fs 模块
+ * @param path Node.js path 模块
+ * @param workspace 工作区根目录
+ * @param confFile luban.conf 路径（相对工作区或绝对路径）
+ * @returns CSV 源文件绝对路径列表
+ */
+export function resolveI18nCsvFiles(fs: any, path: any, workspace: string, confFile: string): string[] {
+    if (!workspace) {
+        return [];
+    }
+    // 未配置时回落到项目标准位置，兼容旧工程
+    const cleanConfFile = confFile && confFile.trim() ? confFile.trim() : 'design/配置/多语言/luban.conf';
+    const confPath = path.isAbsolute(cleanConfFile) ? cleanConfFile : path.join(workspace, cleanConfFile);
+    if (!fs.existsSync(confPath)) {
+        return [];
+    }
+    try {
+        const conf = parseLubanConf(fs.readFileSync(confPath, "utf-8"));
+        const confDir = path.dirname(confPath);
+        const rawDataDir = typeof conf.dataDir === "string" ? conf.dataDir.trim() : "";
+        const dataDir = rawDataDir
+            ? (path.isAbsolute(rawDataDir) ? rawDataDir : path.join(confDir, rawDataDir))
+            : confDir;
+
+        const schemaFiles: any[] = Array.isArray(conf.schemaFiles) ? conf.schemaFiles : [];
+        const schemaNames: string[] = [];
+        const csvFiles: string[] = [];
+
+        for (const schema of schemaFiles) {
+            const schemaName = typeof schema === "string" ? schema : schema?.fileName;
+            if (typeof schemaName !== "string" || !schemaName.trim()) {
+                continue;
+            }
+            const cleanSchemaName = schemaName.trim();
+            schemaNames.push(cleanSchemaName);
+
+            const schemaCandidates = [confDir, dataDir]
+                .map((base: string) => path.isAbsolute(cleanSchemaName) ? cleanSchemaName : path.join(base, cleanSchemaName));
+            const schemaPath = schemaCandidates.find((candidate: string) => fs.existsSync(candidate));
+            if (!schemaPath) {
+                continue;
+            }
+
+            const rows = parseCsvRows(fs.readFileSync(schemaPath, "utf-8"));
+            let varLineIndex = -1;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                if ((rows[i][0] ?? "").trim().startsWith("##var")) {
+                    varLineIndex = i;
+                    break;
+                }
+            }
+            if (varLineIndex === -1) {
+                continue;
+            }
+
+            const header = rows[varLineIndex].map((col: string) => col.trim());
+            const inputIndex = header.indexOf("input");
+            const outputIndex = header.indexOf("output");
+            const groupIndex = header.indexOf("group");
+            if (inputIndex === -1) {
+                continue;
+            }
+
+            for (let i = varLineIndex + 1; i < rows.length; i++) {
+                const row = rows[i];
+                if ((row[0] ?? "").trim().startsWith("##")) {
+                    continue;
+                }
+                const isLanguageTable = groupIndex !== -1 || (row[outputIndex] ?? "").trim() === "gL10n";
+                if (!isLanguageTable) {
+                    continue;
+                }
+                const inputs = (row[inputIndex] ?? "").trim();
+                if (!inputs) {
+                    continue;
+                }
+                for (const item of inputs.split(",")) {
+                    const csvName = item.trim().replace(/^"|"$/g, "");
+                    if (!csvName || !csvName.toLowerCase().endsWith(".csv")) {
+                        continue;
+                    }
+                    const csvPath = path.isAbsolute(csvName) ? csvName : path.join(dataDir, csvName);
+                    if (fs.existsSync(csvPath) && !csvFiles.includes(csvPath)) {
+                        csvFiles.push(csvPath);
+                    }
+                }
+            }
+        }
+
+        if (csvFiles.length > 0) {
+            return csvFiles;
+        }
+        if (fs.existsSync(dataDir)) {
+            return fs.readdirSync(dataDir)
+                .filter((file: string) => file.toLowerCase().endsWith(".csv") && !schemaNames.includes(file))
+                .map((file: string) => path.join(dataDir, file));
+        }
+    } catch (e) {
+        return [];
+    }
+    return [];
+}
+
 /** 树形菜单节点结构接口 */
 interface MenuTreeNode {
     /** 当前层级的路径节点段名 (如 "cc") */
@@ -136,8 +248,9 @@ export class I18nEditorUtil {
                 return;
             }
 
-            // 1. 读取预览语言
+            // 1. 读取预览语言与 luban.conf 路径
             let previewLang = 'zh-Hans';
+            let langConfFile = '';
             const stateFile = path.join(workspace, 'temp', 'gcore-lang-state.json');
             if (fs.existsSync(stateFile)) {
                 try {
@@ -146,20 +259,17 @@ export class I18nEditorUtil {
                     if (stateJson && stateJson.previewLang) {
                         previewLang = stateJson.previewLang;
                     }
+                    if (stateJson && typeof stateJson.langConfFile === 'string') {
+                        langConfFile = stateJson.langConfFile;
+                    }
                 } catch (e) {}
             }
 
-            // 2. 读取 CSV 数据
-            const csvDir = path.join(workspace, 'design/配置/多语言/配置');
-            if (!fs.existsSync(csvDir)) {
-                return;
-            }
-
-            const files = fs.readdirSync(csvDir).filter((f: string) => f.endsWith('.csv'));
+            // 2. 读取 luban.conf 声明的 CSV 数据
+            const files = resolveI18nCsvFiles(fs, path, workspace, langConfFile);
             const allKeys: Array<{ key: string; text: string }> = [];
 
-            for (const file of files) {
-                const filePath = path.join(csvDir, file);
+            for (const filePath of files) {
                 const content = fs.readFileSync(filePath, 'utf-8');
                 // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
                 const rows = parseCsvRows(content);

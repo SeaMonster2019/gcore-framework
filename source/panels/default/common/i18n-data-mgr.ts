@@ -3,8 +3,8 @@
  * @description 编辑器主进程中多语言 CSV 数据加载与查询管理器，无需 HTTP 服务即可进行编辑器内实时 IPC 通信查询
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'fs';
+import { I18nConfigUtil } from './i18n-config-util';
 import { parseCsvRows } from './csv-util';
 import { StorageMgr } from './storage-mgr';
 import { LogCallback } from './types';
@@ -32,19 +32,18 @@ export class I18nDataMgr {
      */
     public static loadCsvData(workspace: string, logger?: LogCallback): void {
         this.dataMap = {};
-        const csvDir = join(workspace, 'design/配置/多语言/配置');
+        const langConfFile = StorageMgr.loadState(workspace).langConfFile;
+        const csvFiles = I18nConfigUtil.resolveCsvFiles(workspace, langConfFile);
 
-        if (!existsSync(csvDir)) {
-            if (logger) logger(`未找到多语言 CSV 目录: ${csvDir}`, 'error');
+        if (csvFiles.length === 0) {
+            if (logger) logger(`未找到多语言 CSV 源文件，请检查 luban.conf 配置: ${langConfFile || '(未设置)'}`, 'error');
             return;
         }
 
         try {
-            const files = readdirSync(csvDir).filter((f) => f.endsWith('.csv'));
             let totalKeys = 0;
 
-            for (const file of files) {
-                const filePath = join(csvDir, file);
+            for (const filePath of csvFiles) {
                 const content = readFileSync(filePath, 'utf-8');
                 // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
                 const rows = parseCsvRows(content);

@@ -3,8 +3,9 @@
  * @description 字体缺字检测核心逻辑，解析字体支持的字符集并与指定多语言的全量文本对比
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { extname, isAbsolute, join, relative } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { extname, isAbsolute, join } from 'path';
+import { I18nConfigUtil } from './i18n-config-util';
 import { parseCsvRows } from './csv-util';
 import { FontParser } from './font-parser';
 import { normalizePathForStorage } from './path-util';
@@ -146,9 +147,10 @@ export class FontChecker {
         const langConfig = state.languages.find((l) => l.code === langCode);
         const langName = langConfig ? langConfig.name : langCode;
 
-        // 3. 读取并解析多语言 CSV 文本文件
-        const csvDir = join(workspace, 'design/配置/多语言/配置');
-        if (!existsSync(csvDir)) {
+        // 3. 读取并解析 luban.conf 声明的多语言 CSV 文本文件
+        const langConfFile = state.langConfFile;
+        const csvFiles = I18nConfigUtil.resolveCsvFiles(workspace, langConfFile);
+        if (csvFiles.length === 0) {
             return {
                 ok: false,
                 fontPath: normalizedFont,
@@ -161,15 +163,13 @@ export class FontChecker {
                 totalUniqueChars: 0,
                 missingChars: [],
                 coveragePercent: 0,
-                error: `未找到多语言 CSV 目录: ${relative(workspace, csvDir)}`,
+                error: `未找到多语言 CSV 源文件，请检查 luban.conf 配置: ${langConfFile || '(未设置)'}`,
             };
         }
 
         const keyTextMap: Map<string, string> = new Map();
         try {
-            const csvFiles = readdirSync(csvDir).filter((f) => f.endsWith('.csv'));
-            for (const file of csvFiles) {
-                const filePath = join(csvDir, file);
+            for (const filePath of csvFiles) {
                 const content = readFileSync(filePath, 'utf-8');
                 // 带换行的文本在 CSV 中由双引号包裹，必须按 CSV 记录解析，不能按物理行拆分
                 const rows = parseCsvRows(content);
