@@ -228,6 +228,11 @@ module.exports = Editor.Panel.define({
         atlasTargetDirBtn: '#atlas-target-dir-btn',
         previewFixAtlasBtn: '#preview-fix-atlas-btn',
         fixAtlasBtn: '#fix-atlas-btn',
+        png8bitTarget: '#png-8bit-target',
+        png8bitFileBtn: '#png-8bit-file-btn',
+        png8bitDirBtn: '#png-8bit-dir-btn',
+        previewPng8bitBtn: '#preview-png-8bit-btn',
+        runPng8bitBtn: '#run-png-8bit-btn',
 
         // 工具设置分面板 DOM 选择器映射 (Tab 5)
         projectRootDir: '#project-root-dir',

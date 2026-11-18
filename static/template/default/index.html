@@ -233,6 +233,27 @@
                     <button id="fix-atlas-btn" class="primary-btn" type="button">开始批量修复图集引用</button>
                 </div>
             </div>
+
+            <!-- 工具 3: PNG 快速 8bit 转换工具 -->
+            <div class="tool-card">
+                <h3>3. PNG 快速 8bit 转换工具</h3>
+                <p class="tab-desc" style="margin-bottom:8px;">
+                    选择 PNG 文件或文件夹，递归扫描非索引色 PNG。规则：同目录存在同名 <code>.json</code> 或 <code>.atlas</code> 时按 Spine 预乘图集使用安全模式；仅存在同名 <code>.plist</code> 时按普通图集使用非安全模式；其它 PNG 自动跳过。<br/>
+                    底层使用扩展内置的 <code>png-to-8bit</code> 模块（Sharp + libimagequant），原地覆盖同名 PNG。
+                </p>
+                <div class="form-group">
+                    <label>目标 PNG 文件或文件夹：</label>
+                    <div class="file-picker">
+                        <input id="png-8bit-target" type="text" placeholder="" />
+                        <button id="png-8bit-file-btn" type="button">选择文件</button>
+                        <button id="png-8bit-dir-btn" type="button">选择文件夹</button>
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top: 8px;">
+                    <button id="preview-png-8bit-btn" class="action-btn" type="button">预览待转换 PNG (仅检测不修改)</button>
+                    <button id="run-png-8bit-btn" class="primary-btn" type="button">开始快速 8bit 转换</button>
+                </div>
+            </div>
         </div>
 
         <!-- Tab 5: 工具设置 -->

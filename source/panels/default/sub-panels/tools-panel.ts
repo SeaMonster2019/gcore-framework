@@ -6,7 +6,14 @@
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join, relative } from 'path';
 import { bindPickerBtn, queryElement } from '../common/dom-util';
-import { normalizePathForStorage } from '../common/path-util';
+import { normalizePathForStorage, resolvePathForExec } from '../common/path-util';
+import {
+    collectPng8BitCandidates,
+    convertPng8Bit,
+    formatPng8BitPreview,
+    formatPng8BitReduction,
+    formatPng8BitSize,
+} from '../common/png-8bit-runner';
 import { StorageMgr } from '../common/storage-mgr';
 import { PanelContext } from '../common/types';
 
@@ -32,6 +39,13 @@ export class ToolsPanel {
     private atlasTargetDirBtn: HTMLButtonElement | null = null;
     private previewFixAtlasBtn: HTMLButtonElement | null = null;
     private fixAtlasBtn: HTMLButtonElement | null = null;
+
+    // 工具 3：PNG 快速 8bit 转换控制节点
+    private png8bitTargetInp: HTMLInputElement | null = null;
+    private png8bitFileBtn: HTMLButtonElement | null = null;
+    private png8bitDirBtn: HTMLButtonElement | null = null;
+    private previewPng8bitBtn: HTMLButtonElement | null = null;
+    private runPng8bitBtn: HTMLButtonElement | null = null;
 
     constructor(context: PanelContext) {
         this.context = context;
@@ -147,6 +161,68 @@ export class ToolsPanel {
                 setAllButtonsDisabled(true);
                 try {
                     await this.executeAtlasReferenceFix(false);
+                } finally {
+                    setAllButtonsDisabled(false);
+                }
+            });
+        }
+
+        // ==================== 工具 3：PNG 快速 8bit 转换 ====================
+        this.png8bitTargetInp = (panel.$ && panel.$.png8bitTarget) || queryElement<HTMLInputElement>(panel, '#png-8bit-target');
+        this.png8bitFileBtn = (panel.$ && panel.$.png8bitFileBtn) || queryElement<HTMLButtonElement>(panel, '#png-8bit-file-btn');
+        this.png8bitDirBtn = (panel.$ && panel.$.png8bitDirBtn) || queryElement<HTMLButtonElement>(panel, '#png-8bit-dir-btn');
+        this.previewPng8bitBtn = (panel.$ && panel.$.previewPng8bitBtn) || queryElement<HTMLButtonElement>(panel, '#preview-png-8bit-btn');
+        this.runPng8bitBtn = (panel.$ && panel.$.runPng8bitBtn) || queryElement<HTMLButtonElement>(panel, '#run-png-8bit-btn');
+
+        if (this.png8bitTargetInp) this.png8bitTargetInp.value = state.png8bitTarget || '';
+
+        if (this.png8bitTargetInp) {
+            this.png8bitTargetInp.addEventListener('input', () => {
+                const val = normalizePathForStorage(this.png8bitTargetInp!.value, workspace);
+                StorageMgr.saveState({ png8bitTarget: val }, workspace);
+            });
+        }
+
+        bindPickerBtn(
+            this.png8bitFileBtn,
+            this.png8bitTargetInp,
+            '选择需要转换的 PNG 文件',
+            'file',
+            workspace,
+            (val) => StorageMgr.saveState({ png8bitTarget: val }, workspace),
+            appendLog,
+            [
+                { name: 'PNG (*.png)', extensions: ['png', 'PNG'] },
+                { name: 'All Files (*.*)', extensions: ['*'] },
+            ]
+        );
+
+        bindPickerBtn(
+            this.png8bitDirBtn,
+            this.png8bitTargetInp,
+            '选择包含 PNG 的目标文件夹（递归扫描）',
+            'directory',
+            workspace,
+            (val) => StorageMgr.saveState({ png8bitTarget: val }, workspace),
+            appendLog
+        );
+
+        if (this.previewPng8bitBtn) {
+            this.previewPng8bitBtn.addEventListener('click', async () => {
+                setAllButtonsDisabled(true);
+                try {
+                    await this.executePng8Bit(true);
+                } finally {
+                    setAllButtonsDisabled(false);
+                }
+            });
+        }
+
+        if (this.runPng8bitBtn) {
+            this.runPng8bitBtn.addEventListener('click', async () => {
+                setAllButtonsDisabled(true);
+                try {
+                    await this.executePng8Bit(false);
                 } finally {
                     setAllButtonsDisabled(false);
                 }
@@ -680,5 +756,61 @@ export class ToolsPanel {
                 appendLog(`=== 修复完成 === 共扫描 ${filesToProcess.length} 个预制体/场景，成功修改 ${totalModifiedFiles} 个文件，累计为 ${totalFixedComponents} 处 Sprite 组件补齐了图集绑定 ${skipDetail}！`, 'success');
             }
         }
+    }
+
+    /**
+     * 工具 3：预览或批量执行 PNG 快速 8bit 转换
+     * @param isPreview 是否仅预览不实际转换
+     */
+    private async executePng8Bit(isPreview: boolean): Promise<void> {
+        const { workspace, appendLog } = this.context;
+        const state = StorageMgr.loadState(workspace);
+        const targetRel = (this.png8bitTargetInp && this.png8bitTargetInp.value.trim()) || state.png8bitTarget;
+
+        if (!targetRel) {
+            appendLog('[PNG 8bit 转换失败] 请先选择或输入目标 PNG 文件或文件夹路径', 'error');
+            return;
+        }
+
+        const targetAbs = resolvePathForExec(targetRel, workspace);
+        if (!existsSync(targetAbs)) {
+            appendLog(`[PNG 8bit 转换失败] 目标路径不存在: ${targetRel}`, 'error');
+            return;
+        }
+
+        let candidates;
+        try {
+            candidates = collectPng8BitCandidates(targetAbs, workspace);
+        } catch (e: any) {
+            appendLog(`[PNG 8bit 扫描失败] ${e?.message ?? String(e)}`, 'error');
+            return;
+        }
+
+        const previewText = formatPng8BitPreview(candidates);
+
+        appendLog(`=== PNG 快速 8bit ${isPreview ? '预览' : '转换'} [${targetRel}] ===`, 'info');
+        appendLog(previewText);
+
+        if (candidates.length === 0) {
+            if (!isPreview) {
+                appendLog('未发现符合条件的 PNG，转换终止。', 'error');
+            }
+            return;
+        }
+
+        if (isPreview) {
+            appendLog('预览完成，未修改任何文件。', 'success');
+            return;
+        }
+
+        const result = await convertPng8Bit(candidates, workspace, appendLog);
+        appendLog(
+            `=== 转换完成 === 成功 ${result.success} 张，失败 ${result.failed} 张`,
+            result.failed > 0 ? 'error' : 'success'
+        );
+        appendLog(
+            `体积统计：${formatPng8BitSize(result.beforeBytes)} → ${formatPng8BitSize(result.afterBytes)}，${formatPng8BitReduction(result.beforeBytes, result.afterBytes)}，节省 ${formatPng8BitSize(Math.max(0, result.beforeBytes - result.afterBytes))}`,
+            'info'
+        );
     }
 }

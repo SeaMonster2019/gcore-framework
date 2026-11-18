@@ -68,6 +68,8 @@ export interface LubanToolState {
     metaCleanDir: string;
     /** 图集引用修复目标预制体/场景路径 */
     atlasTargetLocation: string;
+    /** PNG 快速 8bit 转换目标文件或文件夹路径 */
+    png8bitTarget: string;
     /** 字体替换目标资源文件路径 */
     fontFilePath: string;
     /** 字体替换目标预制体/场景文件或文件夹路径 */
