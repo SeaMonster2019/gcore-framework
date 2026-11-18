@@ -255,11 +255,11 @@
                 </div>
             </div>
 
-            <!-- 工具 4: 精灵 UUID 丢失检测工具 -->
+            <!-- 工具 4: 精灵 UUID / 图集不一致检测工具 -->
             <div class="tool-card">
-                <h3>4. 精灵 UUID 丢失检测工具</h3>
+                <h3>4. 精灵 UUID / 图集不一致检测工具</h3>
                 <p class="tab-desc" style="margin-bottom:8px;">
-                    选择预制体/场景文件或文件夹，先建立项目 <code>assets</code> 下的 SpriteFrame UUID 字典，再检索已绑定 SpriteFrame 但在字典中找不到的 <code>cc.Sprite</code> 组件。空精灵帧会被跳过。<br/>
+                    选择预制体/场景文件或文件夹，先建立项目 <code>assets</code> 下的 SpriteFrame UUID 与图集归属字典，再检索 UUID 丢失或图集绑定不一致的 <code>cc.Sprite</code> 组件。空精灵帧会被跳过，未绑定图集请继续使用图集引用修复工具。<br/>
                     点击下方结果项可打开对应预制体/场景并尝试选中该节点。
                 </p>
                 <div class="form-group">
@@ -272,7 +272,7 @@
                     <div id="sprite-uuid-result-box" class="atlas-result-box"></div>
                 </div>
                 <div class="btn-row" style="margin-top: 8px;">
-                    <button id="scan-sprite-uuid-btn" class="primary-btn" type="button">开始检测精灵 UUID 丢失</button>
+                    <button id="scan-sprite-uuid-btn" class="primary-btn" type="button">开始检测精灵 UUID / 图集不一致</button>
                     <button id="clear-sprite-uuid-result-btn" class="action-btn" type="button">清空结果</button>
                 </div>
             </div>

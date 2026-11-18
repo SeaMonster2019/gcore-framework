@@ -33,6 +33,10 @@ interface SpriteUuidResult {
     nodePath: string;
     nodeId: number | null;
     frameUuid: string;
+    expectedAtlasUuid?: string;
+    expectedAtlasName?: string;
+    boundAtlasUuid?: string;
+    boundAtlasName?: string;
     reason: string;
 }
 
@@ -470,15 +474,17 @@ export class ToolsPanel {
         atlasCount: number;
         spriteFrameUuids: Set<string>;
         atlasUuids: Set<string>;
+        atlasNameMap: Map<string, string>;
     } {
         const { workspace, appendLog } = this.context;
         const assetsDir = join(workspace, 'assets');
         const frameMap = new Map<string, AtlasFrameInfo>();
         const spriteFrameUuids = new Set<string>();
         const atlasUuids = new Set<string>();
+        const atlasNameMap = new Map<string, string>();
 
         if (!existsSync(assetsDir)) {
-            return { frameMap, atlasCount: 0, spriteFrameUuids, atlasUuids };
+            return { frameMap, atlasCount: 0, spriteFrameUuids, atlasUuids, atlasNameMap };
         }
 
         // 收集所有图集 meta 与图片 meta 文件
@@ -543,6 +549,7 @@ export class ToolsPanel {
 
                 atlasCount++;
                 atlasUuids.add(atlasUuid);
+                atlasNameMap.set(atlasUuid, atlasName);
 
                 if (metaJson.subMetas && typeof metaJson.subMetas === 'object') {
                     for (const subKey of Object.keys(metaJson.subMetas)) {
@@ -577,6 +584,7 @@ export class ToolsPanel {
 
                 atlasCount++;
                 atlasUuids.add(atlasUuid);
+                atlasNameMap.set(atlasUuid, atlasName);
 
                 // 递归扫描该目录及其子目录下的所有图片散图
                 const scanPacFrames = (subDir: string) => {
@@ -636,7 +644,7 @@ export class ToolsPanel {
             }
         }
 
-        return { frameMap, atlasCount, spriteFrameUuids, atlasUuids };
+        return { frameMap, atlasCount, spriteFrameUuids, atlasUuids, atlasNameMap };
     }
 
     /**
@@ -949,9 +957,9 @@ export class ToolsPanel {
         this.spriteUuidResults = [];
         this.renderSpriteUuidResults();
 
-        appendLog('=== 精灵 UUID 丢失检测 ===', 'info');
-        appendLog('正在建立项目 SpriteFrame UUID 字典（散图、plist 图集、自动图集）...', 'info');
-        const { spriteFrameUuids, atlasCount } = this.buildAtlasIndex();
+        appendLog('=== 精灵 UUID / 图集不一致检测 ===', 'info');
+        appendLog('正在建立项目 SpriteFrame UUID 与图集归属字典（散图、plist 图集、自动图集）...', 'info');
+        const { frameMap, spriteFrameUuids, atlasCount, atlasNameMap } = this.buildAtlasIndex();
         appendLog(`字典构建完成：${atlasCount} 个图集，${spriteFrameUuids.size} 个 SpriteFrame UUID。`, 'info');
 
         const filesToProcess: string[] = [];
@@ -992,6 +1000,7 @@ export class ToolsPanel {
         let skippedNested = 0;
         let emptyFrameCount = 0;
         let validFrameCount = 0;
+        let atlasMismatchCount = 0;
         let spriteCount = 0;
 
         for (const filePath of filesToProcess) {
@@ -1079,7 +1088,28 @@ export class ToolsPanel {
                 }
 
                 if (spriteFrameUuids.has(frameUuid)) {
-                    validFrameCount++;
+                    const expected = frameMap.get(frameUuid);
+                    const boundAtlasUuid = item._atlas && item._atlas.__uuid__;
+
+                    // 只有明确绑定了错误图集时才报错；未绑定图集交给工具 2 处理
+                    if (expected && typeof boundAtlasUuid === 'string' && boundAtlasUuid && boundAtlasUuid !== expected.atlasUuid) {
+                        atlasMismatchCount++;
+                        this.spriteUuidResults.push({
+                            filePath,
+                            relativePath: relFilePath,
+                            nodeName: nodeName || `ID:${nodeId}`,
+                            nodePath: buildNodePath(nodeId),
+                            nodeId,
+                            frameUuid,
+                            expectedAtlasUuid: expected.atlasUuid,
+                            expectedAtlasName: expected.atlasName,
+                            boundAtlasUuid,
+                            boundAtlasName: atlasNameMap.get(boundAtlasUuid) || '未知图集',
+                            reason: '图集绑定不一致',
+                        });
+                    } else {
+                        validFrameCount++;
+                    }
                     continue;
                 }
 
@@ -1097,8 +1127,9 @@ export class ToolsPanel {
 
         this.renderSpriteUuidResults();
         appendLog('----------------------------------------------------', 'info');
+        const uuidMissingCount = this.spriteUuidResults.length - atlasMismatchCount;
         appendLog(
-            `检测完成：扫描 ${filesToProcess.length} 个文件、${spriteCount} 个 Sprite 组件，发现 ${this.spriteUuidResults.length} 处 SpriteFrame UUID 丢失；有效绑定 ${validFrameCount} 处、空精灵帧 ${emptyFrameCount} 处、跳过下划线节点 ${skippedUnderscore} 处、嵌套预制体内部节点 ${skippedNested} 处。点击结果项可打开资源并选中对应节点。`,
+            `检测完成：扫描 ${filesToProcess.length} 个文件、${spriteCount} 个 Sprite 组件，发现 ${this.spriteUuidResults.length} 处异常（UUID 丢失 ${uuidMissingCount} 处、图集绑定不一致 ${atlasMismatchCount} 处）；有效绑定 ${validFrameCount} 处、空精灵帧 ${emptyFrameCount} 处、跳过下划线节点 ${skippedUnderscore} 处、嵌套预制体内部节点 ${skippedNested} 处。点击结果项可打开资源并选中对应节点。`,
             this.spriteUuidResults.length > 0 ? 'error' : 'success'
         );
     }
@@ -1114,7 +1145,7 @@ export class ToolsPanel {
         if (this.spriteUuidResults.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'atlas-result-empty';
-            empty.textContent = '暂无检测结果。点击“开始检测精灵 UUID 丢失”后在此查看。';
+            empty.textContent = '暂无检测结果。点击“开始检测精灵 UUID / 图集不一致”后在此查看。';
             box.appendChild(empty);
             return;
         }
@@ -1124,10 +1155,13 @@ export class ToolsPanel {
             btn.type = 'button';
             btn.className = 'atlas-result-item';
             btn.title = '点击打开预制体/场景并选中对应节点';
+            const detail = item.reason === '图集绑定不一致'
+                ? `当前图集: ${escapeHtml(item.boundAtlasName || '')} → 实际图集: ${escapeHtml(item.expectedAtlasName || '')} | UUID: ${escapeHtml(item.frameUuid)}`
+                : `UUID: ${escapeHtml(item.frameUuid)}`;
             btn.innerHTML =
                 `<span class="atlas-result-index">${index + 1}</span>` +
                 `<span class="atlas-result-main">${escapeHtml(item.relativePath)}</span>` +
-                `<span class="atlas-result-sub">节点路径: ${escapeHtml(item.nodePath)} | ${escapeHtml(item.reason)} | UUID: ${escapeHtml(item.frameUuid)}</span>`;
+                `<span class="atlas-result-sub">节点路径: ${escapeHtml(item.nodePath)} | ${escapeHtml(item.reason)} | ${detail}</span>`;
             btn.addEventListener('click', () => {
                 this.openSpriteUuidResult(item);
             });
