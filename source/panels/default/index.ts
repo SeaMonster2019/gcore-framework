@@ -233,12 +233,12 @@ module.exports = Editor.Panel.define({
         png8bitDirBtn: '#png-8bit-dir-btn',
         previewPng8bitBtn: '#preview-png-8bit-btn',
         runPng8bitBtn: '#run-png-8bit-btn',
-        spriteUnboundTarget: '#sprite-unbound-target',
-        spriteUnboundFileBtn: '#sprite-unbound-file-btn',
-        spriteUnboundDirBtn: '#sprite-unbound-dir-btn',
-        scanSpriteUnboundBtn: '#scan-sprite-unbound-btn',
-        clearSpriteUnboundResultBtn: '#clear-sprite-unbound-result-btn',
-        spriteUnboundResultBox: '#sprite-unbound-result-box',
+        spriteUuidTarget: '#sprite-uuid-target',
+        spriteUuidFileBtn: '#sprite-uuid-file-btn',
+        spriteUuidDirBtn: '#sprite-uuid-dir-btn',
+        scanSpriteUuidBtn: '#scan-sprite-uuid-btn',
+        clearSpriteUuidResultBtn: '#clear-sprite-uuid-result-btn',
+        spriteUuidResultBox: '#sprite-uuid-result-box',
 
         // 工具设置分面板 DOM 选择器映射 (Tab 5)
         projectRootDir: '#project-root-dir',

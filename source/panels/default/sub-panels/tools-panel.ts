@@ -25,13 +25,14 @@ interface AtlasFrameInfo {
     atlasType: 'plist' | 'auto-atlas';
 }
 
-/** 精灵未绑定检测结果 */
-interface SpriteUnboundResult {
+/** 精灵 UUID 丢失检测结果 */
+interface SpriteUuidResult {
     filePath: string;
     relativePath: string;
     nodeName: string;
     nodePath: string;
     nodeId: number | null;
+    frameUuid: string;
     reason: string;
 }
 
@@ -58,14 +59,14 @@ export class ToolsPanel {
     private previewPng8bitBtn: HTMLButtonElement | null = null;
     private runPng8bitBtn: HTMLButtonElement | null = null;
 
-    // 工具 4：精灵图集缺失检测控制节点
-    private spriteUnboundTargetInp: HTMLInputElement | null = null;
-    private spriteUnboundCheckFileBtn: HTMLButtonElement | null = null;
-    private spriteUnboundCheckDirBtn: HTMLButtonElement | null = null;
-    private scanSpriteUnboundBtn: HTMLButtonElement | null = null;
-    private clearSpriteUnboundResultBtn: HTMLButtonElement | null = null;
-    private spriteUnboundResultBox: HTMLElement | null = null;
-    private spriteUnboundResults: SpriteUnboundResult[] = [];
+    // 工具 4：精灵 UUID 丢失检测控制节点
+    private spriteUuidTargetInp: HTMLInputElement | null = null;
+    private spriteUuidCheckFileBtn: HTMLButtonElement | null = null;
+    private spriteUuidCheckDirBtn: HTMLButtonElement | null = null;
+    private scanSpriteUuidBtn: HTMLButtonElement | null = null;
+    private clearSpriteUuidResultBtn: HTMLButtonElement | null = null;
+    private spriteUuidResultBox: HTMLElement | null = null;
+    private spriteUuidResults: SpriteUuidResult[] = [];
 
     constructor(context: PanelContext) {
         this.context = context;
@@ -249,30 +250,30 @@ export class ToolsPanel {
             });
         }
 
-        // ==================== 工具 4：精灵图集缺失检测 ====================
-        this.spriteUnboundTargetInp = (panel.$ && panel.$.spriteUnboundTarget) || queryElement<HTMLInputElement>(panel, '#sprite-unbound-target');
-        this.spriteUnboundCheckFileBtn = (panel.$ && panel.$.spriteUnboundFileBtn) || queryElement<HTMLButtonElement>(panel, '#sprite-unbound-file-btn');
-        this.spriteUnboundCheckDirBtn = (panel.$ && panel.$.spriteUnboundDirBtn) || queryElement<HTMLButtonElement>(panel, '#sprite-unbound-dir-btn');
-        this.scanSpriteUnboundBtn = (panel.$ && panel.$.scanSpriteUnboundBtn) || queryElement<HTMLButtonElement>(panel, '#scan-sprite-unbound-btn');
-        this.clearSpriteUnboundResultBtn = (panel.$ && panel.$.clearSpriteUnboundResultBtn) || queryElement<HTMLButtonElement>(panel, '#clear-sprite-unbound-result-btn');
-        this.spriteUnboundResultBox = (panel.$ && panel.$.spriteUnboundResultBox) || queryElement<HTMLElement>(panel, '#sprite-unbound-result-box');
+        // ==================== 工具 4：精灵 UUID 丢失检测 ====================
+        this.spriteUuidTargetInp = (panel.$ && panel.$.spriteUuidTarget) || queryElement<HTMLInputElement>(panel, '#sprite-uuid-target');
+        this.spriteUuidCheckFileBtn = (panel.$ && panel.$.spriteUuidFileBtn) || queryElement<HTMLButtonElement>(panel, '#sprite-uuid-file-btn');
+        this.spriteUuidCheckDirBtn = (panel.$ && panel.$.spriteUuidDirBtn) || queryElement<HTMLButtonElement>(panel, '#sprite-uuid-dir-btn');
+        this.scanSpriteUuidBtn = (panel.$ && panel.$.scanSpriteUuidBtn) || queryElement<HTMLButtonElement>(panel, '#scan-sprite-uuid-btn');
+        this.clearSpriteUuidResultBtn = (panel.$ && panel.$.clearSpriteUuidResultBtn) || queryElement<HTMLButtonElement>(panel, '#clear-sprite-uuid-result-btn');
+        this.spriteUuidResultBox = (panel.$ && panel.$.spriteUuidResultBox) || queryElement<HTMLElement>(panel, '#sprite-uuid-result-box');
 
-        if (this.spriteUnboundTargetInp) this.spriteUnboundTargetInp.value = state.spriteUnboundTarget || '';
+        if (this.spriteUuidTargetInp) this.spriteUuidTargetInp.value = state.spriteUuidTarget || '';
 
-        if (this.spriteUnboundTargetInp) {
-            this.spriteUnboundTargetInp.addEventListener('input', () => {
-                const val = normalizePathForStorage(this.spriteUnboundTargetInp!.value, workspace);
-                StorageMgr.saveState({ spriteUnboundTarget: val }, workspace);
+        if (this.spriteUuidTargetInp) {
+            this.spriteUuidTargetInp.addEventListener('input', () => {
+                const val = normalizePathForStorage(this.spriteUuidTargetInp!.value, workspace);
+                StorageMgr.saveState({ spriteUuidTarget: val }, workspace);
             });
         }
 
         bindPickerBtn(
-            this.spriteUnboundCheckFileBtn,
-            this.spriteUnboundTargetInp,
+            this.spriteUuidCheckFileBtn,
+            this.spriteUuidTargetInp,
             '选择目标预制体或场景文件 (.prefab / .scene)',
             'file',
             workspace,
-            (val) => StorageMgr.saveState({ spriteUnboundTarget: val }, workspace),
+            (val) => StorageMgr.saveState({ spriteUuidTarget: val }, workspace),
             appendLog,
             [
                 { name: 'Prefab / Scene (*.prefab, *.scene)', extensions: ['prefab', 'scene', 'PREFAB', 'SCENE'] },
@@ -281,35 +282,35 @@ export class ToolsPanel {
         );
 
         bindPickerBtn(
-            this.spriteUnboundCheckDirBtn,
-            this.spriteUnboundTargetInp,
+            this.spriteUuidCheckDirBtn,
+            this.spriteUuidTargetInp,
             '选择包含预制体或场景的目标文件夹',
             'directory',
             workspace,
-            (val) => StorageMgr.saveState({ spriteUnboundTarget: val }, workspace),
+            (val) => StorageMgr.saveState({ spriteUuidTarget: val }, workspace),
             appendLog
         );
 
-        if (this.scanSpriteUnboundBtn) {
-            this.scanSpriteUnboundBtn.addEventListener('click', () => {
+        if (this.scanSpriteUuidBtn) {
+            this.scanSpriteUuidBtn.addEventListener('click', () => {
                 setAllButtonsDisabled(true);
                 try {
-                    this.executeSpriteUnboundCheck();
+                    this.executeSpriteUuidCheck();
                 } finally {
                     setAllButtonsDisabled(false);
                 }
             });
         }
 
-        if (this.clearSpriteUnboundResultBtn) {
-            this.clearSpriteUnboundResultBtn.addEventListener('click', () => {
-                this.spriteUnboundResults = [];
-                this.renderSpriteUnboundResults();
-                appendLog('已清空精灵图集缺失检测结果。', 'info');
+        if (this.clearSpriteUuidResultBtn) {
+            this.clearSpriteUuidResultBtn.addEventListener('click', () => {
+                this.spriteUuidResults = [];
+                this.renderSpriteUuidResults();
+                appendLog('已清空精灵 UUID 丢失检测结果。', 'info');
             });
         }
 
-        this.renderSpriteUnboundResults();
+        this.renderSpriteUuidResults();
     }
 
     /**
@@ -927,28 +928,31 @@ export class ToolsPanel {
     }
 
     /**
-     * 工具 4：检测预制体/场景中未绑定 SpriteFrame 的精灵组件
+     * 工具 4：检测预制体/场景中 SpriteFrame UUID 已绑定但资源字典中不存在的精灵组件
      */
-    private executeSpriteUnboundCheck(): void {
+    private executeSpriteUuidCheck(): void {
         const { workspace, appendLog } = this.context;
         const state = StorageMgr.loadState(workspace);
-        const targetRel = (this.spriteUnboundTargetInp && this.spriteUnboundTargetInp.value.trim()) || state.spriteUnboundTarget;
+        const targetRel = (this.spriteUuidTargetInp && this.spriteUuidTargetInp.value.trim()) || state.spriteUuidTarget;
 
         if (!targetRel) {
-            appendLog('[精灵未绑定检测失败] 请先选择目标预制体/场景文件或文件夹路径。', 'error');
+            appendLog('[精灵 UUID 丢失检测失败] 请先选择目标预制体/场景文件或文件夹路径。', 'error');
             return;
         }
 
         const targetAbs = resolvePathForExec(targetRel, workspace);
         if (!existsSync(targetAbs)) {
-            appendLog(`[精灵未绑定检测失败] 目标路径不存在: ${targetRel}`, 'error');
+            appendLog(`[精灵 UUID 丢失检测失败] 目标路径不存在: ${targetRel}`, 'error');
             return;
         }
 
-        this.spriteUnboundResults = [];
-        this.renderSpriteUnboundResults();
+        this.spriteUuidResults = [];
+        this.renderSpriteUuidResults();
 
-        appendLog('=== 精灵未绑定检测 ===', 'info');
+        appendLog('=== 精灵 UUID 丢失检测 ===', 'info');
+        appendLog('正在建立项目 SpriteFrame UUID 字典（散图、plist 图集、自动图集）...', 'info');
+        const { spriteFrameUuids, atlasCount } = this.buildAtlasIndex();
+        appendLog(`字典构建完成：${atlasCount} 个图集，${spriteFrameUuids.size} 个 SpriteFrame UUID。`, 'info');
 
         const filesToProcess: string[] = [];
         const stat = statSync(targetAbs);
@@ -956,7 +960,7 @@ export class ToolsPanel {
             if (/\.(prefab|scene)$/i.test(targetAbs)) {
                 filesToProcess.push(targetAbs);
             } else {
-                appendLog(`[精灵未绑定检测失败] 选中的不是有效的 .prefab 或 .scene 文件: ${targetRel}`, 'error');
+                appendLog(`[精灵 UUID 丢失检测失败] 选中的不是有效的 .prefab 或 .scene 文件: ${targetRel}`, 'error');
                 return;
             }
         } else {
@@ -986,6 +990,8 @@ export class ToolsPanel {
 
         let skippedUnderscore = 0;
         let skippedNested = 0;
+        let emptyFrameCount = 0;
+        let validFrameCount = 0;
         let spriteCount = 0;
 
         for (const filePath of filesToProcess) {
@@ -1059,48 +1065,61 @@ export class ToolsPanel {
                 }
 
                 const spriteFrame = item._spriteFrame;
-                const hasFrame = !!spriteFrame && (
-                    (typeof spriteFrame === 'string' && spriteFrame.length > 0) ||
-                    (typeof spriteFrame === 'object' && !!spriteFrame.__uuid__)
-                );
-                if (hasFrame) continue;
+                let frameUuid = '';
+                if (typeof spriteFrame === 'string') {
+                    frameUuid = spriteFrame;
+                } else if (spriteFrame && typeof spriteFrame === 'object' && typeof spriteFrame.__uuid__ === 'string') {
+                    frameUuid = spriteFrame.__uuid__;
+                }
 
-                this.spriteUnboundResults.push({
+                // 空精灵帧是有意保留的配置，不视为 UUID 丢失
+                if (!frameUuid) {
+                    emptyFrameCount++;
+                    continue;
+                }
+
+                if (spriteFrameUuids.has(frameUuid)) {
+                    validFrameCount++;
+                    continue;
+                }
+
+                this.spriteUuidResults.push({
                     filePath,
                     relativePath: relFilePath,
                     nodeName: nodeName || `ID:${nodeId}`,
                     nodePath: buildNodePath(nodeId),
                     nodeId,
-                    reason: '未绑定 SpriteFrame',
+                    frameUuid,
+                    reason: 'SpriteFrame UUID 丢失',
                 });
             }
         }
 
-        this.renderSpriteUnboundResults();
+        this.renderSpriteUuidResults();
         appendLog('----------------------------------------------------', 'info');
         appendLog(
-            `检测完成：扫描 ${filesToProcess.length} 个文件、${spriteCount} 个 Sprite 组件，发现 ${this.spriteUnboundResults.length} 处未绑定 SpriteFrame；跳过下划线节点 ${skippedUnderscore} 处、嵌套预制体内部节点 ${skippedNested} 处。点击结果项可打开资源并选中对应节点。`,
-            this.spriteUnboundResults.length > 0 ? 'error' : 'success'
+            `检测完成：扫描 ${filesToProcess.length} 个文件、${spriteCount} 个 Sprite 组件，发现 ${this.spriteUuidResults.length} 处 SpriteFrame UUID 丢失；有效绑定 ${validFrameCount} 处、空精灵帧 ${emptyFrameCount} 处、跳过下划线节点 ${skippedUnderscore} 处、嵌套预制体内部节点 ${skippedNested} 处。点击结果项可打开资源并选中对应节点。`,
+            this.spriteUuidResults.length > 0 ? 'error' : 'success'
         );
     }
 
     /**
-     * 渲染精灵未绑定检测结果列表
+     * 渲染精灵 UUID 丢失检测结果列表
      */
-    private renderSpriteUnboundResults(): void {
-        const box = this.spriteUnboundResultBox;
+    private renderSpriteUuidResults(): void {
+        const box = this.spriteUuidResultBox;
         if (!box) return;
 
         box.innerHTML = '';
-        if (this.spriteUnboundResults.length === 0) {
+        if (this.spriteUuidResults.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'atlas-result-empty';
-            empty.textContent = '暂无检测结果。点击“开始检测未绑定精灵”后在此查看。';
+            empty.textContent = '暂无检测结果。点击“开始检测精灵 UUID 丢失”后在此查看。';
             box.appendChild(empty);
             return;
         }
 
-        this.spriteUnboundResults.forEach((item, index) => {
+        this.spriteUuidResults.forEach((item, index) => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'atlas-result-item';
@@ -1108,9 +1127,9 @@ export class ToolsPanel {
             btn.innerHTML =
                 `<span class="atlas-result-index">${index + 1}</span>` +
                 `<span class="atlas-result-main">${escapeHtml(item.relativePath)}</span>` +
-                `<span class="atlas-result-sub">节点路径: ${escapeHtml(item.nodePath)} | ${escapeHtml(item.reason)}</span>`;
+                `<span class="atlas-result-sub">节点路径: ${escapeHtml(item.nodePath)} | ${escapeHtml(item.reason)} | UUID: ${escapeHtml(item.frameUuid)}</span>`;
             btn.addEventListener('click', () => {
-                this.openSpriteUnboundResult(item);
+                this.openSpriteUuidResult(item);
             });
             box.appendChild(btn);
         });
@@ -1120,7 +1139,7 @@ export class ToolsPanel {
      * 打开检测结果对应的预制体/场景并选中节点
      * @param item 检测结果
      */
-    private async openSpriteUnboundResult(item: SpriteUnboundResult): Promise<void> {
+    private async openSpriteUuidResult(item: SpriteUuidResult): Promise<void> {
         const { appendLog } = this.context;
         const url = `db://${item.relativePath.replace(/\\/g, '/')}`;
         try {
