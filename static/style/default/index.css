@@ -392,3 +392,60 @@ input[type="text"], textarea, code, pre {
     color: var(--color-normal-contrast);
 }
 
+.atlas-result-box {
+    margin-top: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--color-normal-border);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.atlas-result-empty {
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--color-normal-contrast);
+}
+
+.atlas-result-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid var(--color-normal-border);
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-normal-contrast);
+    cursor: pointer;
+    line-height: 1.45;
+}
+
+.atlas-result-item:last-child {
+    border-bottom: none;
+}
+
+.atlas-result-item:hover {
+    background: var(--color-normal-fill);
+}
+
+.atlas-result-index {
+    display: inline-block;
+    min-width: 24px;
+    font-weight: bold;
+    color: var(--color-focus);
+}
+
+.atlas-result-main {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.atlas-result-sub {
+    display: block;
+    margin-left: 24px;
+    font-size: 11px;
+    opacity: 0.85;
+}
+

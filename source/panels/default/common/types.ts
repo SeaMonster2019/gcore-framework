@@ -70,6 +70,8 @@ export interface LubanToolState {
     atlasTargetLocation: string;
     /** PNG 快速 8bit 转换目标文件或文件夹路径 */
     png8bitTarget: string;
+    /** 精灵图集缺失检测目标预制体/场景路径 */
+    spriteUnboundTarget: string;
     /** 字体替换目标资源文件路径 */
     fontFilePath: string;
     /** 字体替换目标预制体/场景文件或文件夹路径 */

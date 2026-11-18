@@ -1,4 +1,4 @@
-import { Button, EventTouch, PolygonCollider2D, UITransform, Vec2, Vec3, _decorator } from "cc";
+import { Button, Component, EventTouch, PolygonCollider2D, UITransform, Vec2, Vec3, _decorator } from "cc";
 import { MathUtil } from "../../../../base/math";
 const { property, ccclass, menu, requireComponent } = _decorator;
 
@@ -9,11 +9,20 @@ const { property, ccclass, menu, requireComponent } = _decorator;
  */
 @ccclass("PolygonBtn")
 @menu("GCore/Button/PolygonBtn")
-@requireComponent(PolygonCollider2D)
+@requireComponent(PolygonCollider2D ?? Component)
 export class PolygonBtn extends Button {
 
-    /** 多边形碰撞体组件 */
-    @property({ type: PolygonCollider2D, displayName: "多边形组件", tooltip: "多边形碰撞体组件，用于判定点击响应区域" })
+    /**
+     * 多边形碰撞体组件。
+     * 2D 物理模块被项目裁剪时 PolygonCollider2D 在运行时为 undefined，
+     * 降级为 Component 可避免 @property(type: undefined) 的 warnID 3660 警告；
+     * 未裁剪的项目仍使用 PolygonCollider2D，序列化与编辑器行为不变。
+     */
+    @property({
+        type: PolygonCollider2D ?? Component,
+        displayName: "多边形组件",
+        tooltip: "多边形碰撞体组件，用于判定点击响应区域",
+    })
     public polygon: PolygonCollider2D | null = null;
 
     /** 触摸点本地坐标缓存 */
