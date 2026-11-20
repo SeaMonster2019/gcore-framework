@@ -52,6 +52,8 @@ export class EffectChannel {
     private _throttleMap: Map<string, number> = new Map();
     /** 自增 AudioId */
     private _nextAudioId: number = 1;
+    /** 自增 AudioSource 子节点编号 */
+    private _sourceSeed: number = 0;
     /** 全局暂停状态 */
     private _isPaused: boolean = false;
 
@@ -76,10 +78,19 @@ export class EffectChannel {
         this._loadClipFunc = loadClipFunc || null;
         this._releaseClipFunc = releaseClipFunc || null;
         for (let i = 0; i < initialPoolSize; i++) {
-            const src = hostNode.addComponent(AudioSource);
-            src.loop = false;
-            this._pool.push(src);
+            const src = this._createAudioSource();
+            if (src) this._pool.push(src);
         }
+    }
+
+    /** 创建独立子节点的 AudioSource：ENDED 事件按节点派发，避免共享节点上互相误触发回收 */
+    private _createAudioSource(): AudioSource | null {
+        if (!this._hostNode || !isValid(this._hostNode)) return null;
+        const node = new Node(`effect-source-${this._sourceSeed++}`);
+        this._hostNode.addChild(node);
+        const src = node.addComponent(AudioSource);
+        src.loop = false;
+        return src;
     }
 
     /****************  音效播放与控制  ****************/
@@ -263,21 +274,14 @@ export class EffectChannel {
 
         // 检查总并发上限
         if (this._activeMap.size < EffectChannel.MAX_ACTIVE_EFFECTS) {
-            if (this._hostNode && isValid(this._hostNode)) {
-                const src = this._hostNode.addComponent(AudioSource);
-                src.loop = false;
-                return src;
-            }
-            return null;
+            return this._createAudioSource();
         }
 
-        // 达到最大并发限制，抢占最早播放的音效
+        // 达到最大并发限制，抢占最早播放的音效：回收后从池中重新取，避免同一 source 既在池中又在使用
         const oldestId = this._activeMap.keys().next().value;
         if (oldestId !== undefined) {
-            const oldestInfo = this._activeMap.get(oldestId)!;
-            const src = oldestInfo.source;
             this._recycleEffect(oldestId);
-            return src;
+            return this._pool.pop() ?? this._createAudioSource();
         }
 
         return null;
