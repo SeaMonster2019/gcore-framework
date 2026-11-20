@@ -2,7 +2,7 @@ import { instantiate, isValid, Node, screen, UITransform, view } from "cc";
 import { gcoreEvent, GCoreEvent } from "../../system/event/index";
 import { BaseCtrl } from "./base-ctrl";
 import { BaseModel } from "./base-model";
-import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, IViewParams, ViewId, ViewOpenArgs, ViewType } from "./mvc-interface";
+import { IMvcMrgParams, IMvcParams, IViewHandle, IViewParamMap, IViewParams, ViewId, ViewInstantiationAfterCallback, ViewOpenArgs, ViewType } from "./mvc-interface";
 import { BaseView } from "./base-view";
 
 /** MVC管理器，负责MVC框架的注册、视图的创建与销毁等核心管理 */
@@ -22,6 +22,10 @@ export class MvcMgr {
     private _loadingViewMap: Map<number, Promise<IViewHandle>> = new Map();
     /** 实例id自增计数器 */
     private _iid: number = 0;
+    /** 框架外注入的「视图实例化并挂载后」回调，可为节点树内的按钮统一绑定事件 */
+    private _onInstantiationAfter: ViewInstantiationAfterCallback | null = null;
+    /** 已触发过实例化回调的节点集合，保证每个 view 实例无论如何只触发一次 */
+    private _instantiatedNodes: WeakSet<Node> = new WeakSet<Node>();
 
     /****************  初始化  ****************/
 
@@ -38,6 +42,16 @@ export class MvcMgr {
         // 移除旧监听后重新注册，防止重复绑定
         screen.off('window-resize', this._onWindowResize, this);
         screen.on('window-resize', this._onWindowResize, this);
+    }
+
+    /**
+     * 注入「视图实例化并挂载后」回调（框架外调用）。
+     * 每个 view 节点在 instantiate + setParent 后触发一次，无论何种情况同一节点都不会重复触发；
+     * 重复调用本方法会覆盖上一个回调。典型用途：为 view 节点树内所有按钮统一绑定点击音效。
+     * @param callback 回调函数；传 null 可取消注入
+     */
+    public setOnInstantiationAfter(callback: ViewInstantiationAfterCallback | null): void {
+        this._onInstantiationAfter = callback;
     }
 
     /** 注册单个MVC模块，创建对应的Model和Ctrl实例
@@ -301,6 +315,17 @@ export class MvcMgr {
 
     /****************  私有方法  ****************/
 
+    /** 触发「视图实例化并挂载后」回调：按节点去重，同一实例无论如何只触发一次 */
+    private _notifyInstantiationAfter(node: Node, mvcParams: IMvcParams): void {
+        if (!this._onInstantiationAfter || this._instantiatedNodes.has(node)) return;
+        this._instantiatedNodes.add(node);
+        try {
+            this._onInstantiationAfter(node, mvcParams);
+        } catch (error) {
+            console.error(`[MvcMgr] onInstantiationAfter 回调执行失败: ${mvcParams.prefabName}`, error);
+        }
+    }
+
     /** 取映射表中的首个视图实例，兼容单实例与多实例数组两种存储形式
      * @param entry 视图映射表条目
      * @returns 首个视图实例，无实例时返回null
@@ -353,6 +378,11 @@ export class MvcMgr {
             this._adaptation(newNode);
         }
         newNode.setParent(this._params.root);
+
+        // 视图已实例化并挂载：触发框架外注入的回调（每个节点仅一次），
+        // 供外部为节点树内的按钮统一绑定事件。置于 _initViewNode 之前，
+        // 此时尚无动态子按钮，避免后续动态创建的格子按钮被重复绑定。
+        this._notifyInstantiationAfter(newNode, mvcParams);
 
         // 初始化View组件
         const view = this._initViewNode(newNode, mvcParams, viewParams);

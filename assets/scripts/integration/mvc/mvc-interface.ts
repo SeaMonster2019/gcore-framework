@@ -92,3 +92,9 @@ export interface IMvcMrgParams {
     viewPrefabReleaseFunc?: (prefab: string, pack: string) => void;
 }
 
+/**
+ * 视图实例化并挂载完成后的回调，由框架外注入。
+ * 每个 view 实例仅触发一次，框架外可在此为 view 节点树内的按钮统一绑定事件（如点击音效）。
+ */
+export type ViewInstantiationAfterCallback = (node: Node, mvcParams: IMvcParams) => void;
+
