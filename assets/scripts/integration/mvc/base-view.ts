@@ -37,6 +37,11 @@ export class BaseView<P extends IViewParams | undefined = undefined> extends Com
         this._params = viewParams;
     }
 
+    /** 更新视图参数：单例视图被复用时由框架写入本次 open 的新参数，保持 _params 为最新 */
+    public setParams(viewParams?: P): void {
+        this._params = viewParams as P;
+    }
+
     /** 视图打开回调，节点首次创建并显示后触发 */
     public onOpen(): void { }
 

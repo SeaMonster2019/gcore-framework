@@ -98,6 +98,9 @@ export class MvcMgr {
                 if (!existView.node.active) {
                     existView.node.active = true;
                 }
+                // 复用实例不会重新 onInit，这里把本次 open 的新参数写回视图，
+                // 避免 _params 停留在首次 open 的旧值（如单例 GameMain 复用后关卡回到第 1 关）
+                existView.setParams(param);
                 existView.onShow();
                 return this._createViewHandle(tid, existView);
             }

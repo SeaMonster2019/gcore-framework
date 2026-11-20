@@ -7,6 +7,8 @@ export interface IView extends Component {
     getTid(): number;
     getIid(): number;
     onInit(tid: number, iid: number, ctrl: BaseCtrl, model: BaseModel, params?: any): void;
+    /** 更新视图参数：单例视图被复用、不重新 onInit 时由框架写入本次 open 的新参数 */
+    setParams(params?: any): void;
     onOpen(): void;
     onShow(): void;
 }
